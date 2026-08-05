@@ -760,98 +760,151 @@ with pestanas[1]:
 
 
 with pestanas[2]:
-    st.subheader("Orden corregida por proveedor")
-    st.caption(
-        "La recomendación excluye productos desconocidos y respeta formatos completos de compra."
+    _titulo_seccion(
+        "03 · Resolver",
+        "Orden corregida por proveedor",
+        "Revisa el ajuste final, filtra por proveedor y descarga archivos listos para enviar. La recomendación excluye productos desconocidos y conserva formatos completos.",
     )
 
     proveedores = sorted(analisis.orden_corregida["proveedor"].dropna().unique())
-    filtro_proveedores = st.multiselect(
-        "Proveedor",
-        proveedores,
-        placeholder="Todos los proveedores",
-    )
+    with st.container(border=True):
+        filtro_proveedores = st.multiselect(
+            "Filtrar proveedores",
+            proveedores,
+            placeholder="Todos los proveedores",
+            help="La descarga filtrada respeta esta selección.",
+        )
     orden_filtrada = preparar_orden_por_proveedor(
         analisis.orden_corregida,
         proveedores=filtro_proveedores,
     )
 
     indicadores_orden = st.columns(3)
-    indicadores_orden[0].metric("Proveedores", orden_filtrada["proveedor"].nunique())
-    indicadores_orden[1].metric("Líneas de compra", len(orden_filtrada))
-    indicadores_orden[2].metric("Sucursales", orden_filtrada["sucursal"].nunique())
+    with indicadores_orden[0]:
+        _tarjeta_metrica("Proveedores", orden_filtrada["proveedor"].nunique(), "incluidos en la vista")
+    with indicadores_orden[1]:
+        _tarjeta_metrica("Líneas de compra", len(orden_filtrada), "ingredientes por sucursal", "brand")
+    with indicadores_orden[2]:
+        _tarjeta_metrica("Sucursales", orden_filtrada["sucursal"].nunique(), "cubiertas por la orden")
 
+    _separador("Vista consolidada")
     st.dataframe(
-        orden_filtrada,
+        _orden_para_interfaz(orden_filtrada),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         height=480,
+        column_config={
+            "Cantidad original": st.column_config.NumberColumn(format="%d"),
+            "Cantidad recomendada": st.column_config.NumberColumn(format="%d"),
+            "Ajuste": st.column_config.NumberColumn(
+                help="Positivo: agregar. Negativo: reducir.",
+                format="%+d",
+            ),
+            "Total recomendado": st.column_config.NumberColumn(format="%.2f"),
+        },
     )
+    st.caption("Ajuste positivo = agregar formatos · Ajuste negativo = reducir formatos.")
 
     descargas = st.columns(2)
-    descargas[0].download_button(
-        "Descargar orden corregida completa",
+    descarga_completa = descargas[0].download_button(
+        "Descargar orden completa · CSV",
         data=dataframe_a_csv_bytes(analisis.orden_corregida),
         file_name="orden_corregida_barrio_pizza.csv",
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
+        type="primary",
     )
-    descargas[1].download_button(
-        "Descargar vista filtrada",
+    descarga_filtrada = descargas[1].download_button(
+        "Descargar vista filtrada · CSV",
         data=dataframe_a_csv_bytes(orden_filtrada),
         file_name="orden_corregida_filtrada.csv",
         mime="text/csv",
-        use_container_width=True,
+        width="stretch",
     )
+    if descarga_completa or descarga_filtrada:
+        st.toast("Descarga preparada correctamente.")
 
-    st.markdown("#### Separación lista para enviar")
+    _separador("Órdenes separadas, listas para enviar")
     for proveedor, grupo in orden_filtrada.groupby("proveedor", sort=True):
-        with st.expander(f"{proveedor} · {len(grupo)} líneas"):
+        with st.expander(f"{proveedor} · {len(grupo)} líneas de compra"):
             st.dataframe(
-                grupo.drop(columns="proveedor"),
+                _orden_para_interfaz(grupo).drop(columns="Proveedor"),
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
             )
-            st.download_button(
-                f"Descargar orden de {proveedor}",
+            descarga_proveedor = st.download_button(
+                f"Descargar CSV · {proveedor}",
                 data=dataframe_a_csv_bytes(grupo),
                 file_name=f"orden_{str(proveedor).lower().replace(' ', '_')}.csv",
                 mime="text/csv",
                 key=f"descarga_{proveedor}",
             )
+            if descarga_proveedor:
+                st.toast(f"Orden de {proveedor} preparada.")
 
 
 with pestanas[3]:
-    st.subheader("Calidad de datos y trazabilidad del modelo")
+    _titulo_seccion(
+        "04 · Verificar",
+        "Calidad y trazabilidad",
+        "Distingue problemas de archivo, desempeño del modelo y evidencia de cada proyección.",
+    )
 
     hallazgos = analisis.hallazgos.copy()
+    _separador("Calidad de datos")
+    st.caption("Los errores bloqueantes detienen el cálculo; las advertencias permiten continuar, pero requieren revisión.")
     columnas_calidad = st.columns(3)
-    columnas_calidad[0].metric("Hallazgos", len(hallazgos))
-    columnas_calidad[1].metric(
-        "Errores",
-        int((hallazgos["nivel"] == "ERROR").sum()) if not hallazgos.empty else 0,
-    )
-    columnas_calidad[2].metric(
-        "Bloqueantes",
-        int(hallazgos["bloqueante"].fillna(False).sum()) if not hallazgos.empty else 0,
-    )
+    cantidad_errores = int((hallazgos["nivel"] == "ERROR").sum()) if not hallazgos.empty else 0
+    cantidad_bloqueantes = int(hallazgos["bloqueante"].fillna(False).sum()) if not hallazgos.empty else 0
+    with columnas_calidad[0]:
+        _tarjeta_metrica("Hallazgos", len(hallazgos), "advertencias y errores")
+    with columnas_calidad[1]:
+        _tarjeta_metrica("Errores", cantidad_errores, "requieren corrección", "high" if cantidad_errores else "good")
+    with columnas_calidad[2]:
+        _tarjeta_metrica("Bloqueantes", cantidad_bloqueantes, "detienen el análisis", "critical" if cantidad_bloqueantes else "good")
 
     if hallazgos.empty:
         st.success("No se encontraron problemas de calidad de datos.")
     else:
+        tabla_calidad = hallazgos.copy()
+        tabla_calidad["bloqueante"] = tabla_calidad["bloqueante"].fillna(False).map({True: "Sí", False: "No"})
+        tabla_calidad = tabla_calidad.rename(
+            columns={
+                "codigo": "Código",
+                "nivel": "Severidad",
+                "archivo": "Fuente",
+                "mensaje": "Hallazgo",
+                "sucursal": "Sucursal",
+                "ingrediente_id": "Ingrediente",
+                "campo": "Campo",
+                "valor": "Valor recibido",
+                "bloqueante": "¿Bloquea el análisis?",
+            }
+        )
         st.dataframe(
-            hallazgos,
+            tabla_calidad,
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
         st.download_button(
-            "Descargar reporte de calidad",
+            "Descargar reporte de calidad · CSV",
             data=dataframe_a_csv_bytes(hallazgos),
             file_name="reporte_calidad_datos.csv",
             mime="text/csv",
         )
 
-    st.markdown("#### Métodos seleccionados")
+    _separador("Rendimiento del modelo")
+    wape_mediano = analisis.proyecciones["wape_backtest_pct"].replace([float("inf"), float("-inf")], pd.NA).dropna().median()
+    modelo_metricas = st.columns(4)
+    with modelo_metricas[0]:
+        _tarjeta_metrica("Proyecciones", len(analisis.proyecciones), "sucursal + ingrediente")
+    with modelo_metricas[1]:
+        _tarjeta_metrica("Métodos usados", analisis.proyecciones["metodo_proyeccion"].nunique(), "selección adaptativa")
+    with modelo_metricas[2]:
+        _tarjeta_metrica("WAPE mediano", _formatear_porcentaje(wape_mediano), "error retrospectivo", "good")
+    with modelo_metricas[3]:
+        _tarjeta_metrica("Series atípicas", int((analisis.proyecciones["cantidad_atipicos"] > 0).sum()), "requieren contexto")
+
     metodos = (
         analisis.proyecciones.groupby("metodo_proyeccion")
         .size()
@@ -865,17 +918,17 @@ with pestanas[3]:
         y="cantidad",
         labels={"cantidad": "Combinaciones"},
         text_auto=True,
+        color_discrete_sequence=["#C9251A"],
+        title="Método elegido por serie",
     )
-    figura_metodos.update_layout(
-        margin=dict(l=10, r=10, t=20, b=10),
-        showlegend=False,
-    )
+    figura_metodos.update_layout(showlegend=False)
     st.plotly_chart(
-        figura_metodos,
-        use_container_width=True,
+        _estilo_grafico(figura_metodos, altura=350),
+        width="stretch",
         config={"displayModeBar": False},
     )
 
+    _separador("Trazabilidad de cada proyección")
     columnas_modelo_tabla = [
         "sucursal",
         "ingrediente_id",
@@ -891,14 +944,27 @@ with pestanas[3]:
     tabla_modelos["metodo_proyeccion"] = tabla_modelos[
         "metodo_proyeccion"
     ].map(METODO_ETIQUETAS)
+    tabla_modelos = tabla_modelos.rename(
+        columns={
+            "sucursal": "Sucursal",
+            "ingrediente_id": "Ingrediente",
+            "consumo_proyectado_unidad_base": "Consumo proyectado",
+            "metodo_proyeccion": "Método",
+            "cantidad_atipicos": "Datos atípicos",
+            "semanas_atipicas": "Semanas atípicas",
+            "mae_backtest": "MAE retrospectivo",
+            "wape_backtest_pct": "WAPE retrospectivo (%)",
+            "explicacion_proyeccion": "Explicación",
+        }
+    )
     st.dataframe(
         tabla_modelos,
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         height=420,
     )
 
-    with st.expander("Supuestos actuales del prototipo"):
+    with st.expander("Supuestos operativos del cálculo"):
         st.markdown(
             """
 - S1 es la semana más antigua y S6 la más reciente.
@@ -911,38 +977,50 @@ with pestanas[3]:
         )
 
 with pestanas[4]:
-    st.subheader("Asistente de compras")
-    st.caption(
-        "Pregunta en lenguaje natural. Las cantidades siempre provienen del motor de cálculo verificado."
+    _titulo_seccion(
+        "05 · Consultar",
+        "Barrio AI",
+        "Pregunta en lenguaje natural sobre alertas, inventario, proyección, proveedores y cantidades recomendadas.",
     )
 
     if generador_ia is not None:
-        st.success(f"IA conectada · {modelo_gemini}")
-        st.caption(
-            "El modelo interpreta la pregunta y redacta la respuesta, pero no decide ni modifica cantidades."
-        )
+        modo_asistente = f"IA conectada · {modelo_gemini}"
+        descripcion_asistente = "Gemini interpreta la pregunta; el motor verificado conserva el control de todas las cantidades."
     else:
-        st.info("Modo local verificado")
-        st.caption(
-            "El asistente funciona sin internet para preguntas directas. Al configurar Gemini, también entenderá preguntas más flexibles y seguimientos."
-        )
+        modo_asistente = "Modo local verificado"
+        descripcion_asistente = "Disponible sin internet para consultas directas sobre los resultados ya calculados."
         if error_configuracion_ia:
-            with st.expander("Detalle de configuración"):
+            with st.expander("Por qué se activó el modo local"):
                 st.code(error_configuracion_ia)
 
-    st.markdown("#### Preguntas sugeridas")
+    st.markdown(
+        f"""
+        <div class="bp-ai-hero">
+          <div>
+            <h3>Barrio AI · Asistente de compras</h3>
+            <p>{_seguro(descripcion_asistente)}</p>
+          </div>
+          <div class="bp-ai-mode"><span class="bp-dot bp-dot--{'ok' if generador_ia is not None else 'warn'}"></span> {_seguro(modo_asistente)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if generador_ia is None:
+        st.info("Respaldo local activo. Las respuestas siguen usando únicamente los resultados calculados.")
+
+    _separador("Preguntas sugeridas")
     sugerencias = [
         "¿Qué debo revisar primero?",
         "¿Cuánta harina debe comprar Costa del Este?",
         "¿Qué están pidiendo de más?",
         "¿Quién provee la mozzarella?",
     ]
-    columnas_sugerencias = st.columns(4)
+    columnas_sugerencias = st.columns(2)
     pregunta_sugerida = None
     for indice, sugerencia in enumerate(sugerencias):
-        if columnas_sugerencias[indice].button(
+        if columnas_sugerencias[indice % 2].button(
             sugerencia,
-            use_container_width=True,
+            width="stretch",
             key=f"sugerencia_asistente_{indice}",
         ):
             pregunta_sugerida = sugerencia
@@ -952,8 +1030,8 @@ with pestanas[4]:
             {
                 "role": "assistant",
                 "content": (
-                    "Hola. Puedo ayudarte a consultar recomendaciones, inventario, consumo proyectado, "
-                    "alertas y proveedores."
+                    "Hola, soy Barrio AI. Puedo ayudarte a revisar prioridades, cantidades recomendadas, "
+                    "inventario, consumo proyectado y proveedores. Los números siempre salen del análisis de esta orden."
                 ),
                 "modo": "local",
                 "evidencia": [],
@@ -964,6 +1042,9 @@ with pestanas[4]:
     for mensaje in st.session_state.mensajes_asistente:
         with st.chat_message(mensaje["role"]):
             st.markdown(mensaje["content"])
+            if mensaje["role"] == "assistant" and mensaje.get("modo"):
+                modo_mensaje = "Gemini + cálculo verificado" if mensaje.get("modo") == "gemini" else "Cálculo local verificado"
+                st.caption(modo_mensaje)
             if mensaje.get("advertencia"):
                 st.warning(mensaje["advertencia"])
             evidencia = mensaje.get("evidencia") or []
@@ -972,9 +1053,8 @@ with pestanas[4]:
                     for elemento in evidencia:
                         st.write(f"- {elemento}")
 
-    pregunta_escrita = st.chat_input(
-        "Ejemplo: ¿Cuántas cajas de mozzarella necesita Brisas del Golf?"
-    )
+    st.markdown("#### Escribe tu pregunta")
+    pregunta_escrita = st.chat_input("Ejemplo: ¿Cuántas cajas de mozzarella necesita Brisas del Golf?")
     pregunta = pregunta_sugerida or pregunta_escrita
 
     if pregunta:
@@ -988,7 +1068,7 @@ with pestanas[4]:
             for mensaje in st.session_state.mensajes_asistente[-8:]
         ]
         with st.chat_message("assistant"):
-            with st.spinner("Consultando los datos..."):
+            with st.spinner("Barrio AI está consultando los resultados..."):
                 respuesta = responder_asistente(
                     pregunta,
                     analisis,
@@ -996,6 +1076,7 @@ with pestanas[4]:
                     historial=historial,
                 )
             st.markdown(respuesta.respuesta)
+            st.caption("Gemini + cálculo verificado" if respuesta.modo == "gemini" else "Cálculo local verificado")
             if respuesta.advertencia:
                 st.warning(respuesta.advertencia)
             if respuesta.evidencia:
@@ -1013,6 +1094,6 @@ with pestanas[4]:
             }
         )
 
-    if st.button("Limpiar conversación", key="limpiar_asistente"):
+    if st.button("Limpiar historial", key="limpiar_asistente"):
         st.session_state.mensajes_asistente = []
         st.rerun()
