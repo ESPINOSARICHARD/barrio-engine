@@ -339,7 +339,7 @@ def _respuesta_conteo(
     return "", (), ""
 
 
-def responder_local(
+def _responder_local_es(
     pregunta: str,
     analisis: AnalisisCompras,
 ) -> RespuestaAsistente:
@@ -446,6 +446,203 @@ def responder_local(
     )
 
 
+def _adaptar_pregunta_ingles(pregunta: str) -> str:
+    """Convierte términos frecuentes en inglés al vocabulario del motor local."""
+    normalizada = normalizar_texto(pregunta)
+    reemplazos = [
+        ("what should i review first", "que debo revisar primero"),
+        ("what do i need to review first", "que debo revisar primero"),
+        ("who supplies", "quien provee"),
+        ("who is the supplier for", "quien provee"),
+        ("how many", "cuantos"),
+        ("how much", "cuanto"),
+        ("need to buy", "necesita comprar"),
+        ("should buy", "debe comprar"),
+        ("should order", "debe pedir"),
+        ("current inventory", "inventario actual"),
+        ("in stock", "inventario"),
+        ("forecast consumption", "consumo proyectado"),
+        ("projected consumption", "consumo proyectado"),
+        ("overordered", "sobrepedido"),
+        ("overorders", "sobrepedidos"),
+        ("too much", "de mas"),
+        ("shortage", "faltante"),
+        ("missing", "omitido"),
+        ("stockout", "quiebre"),
+        ("alerts", "alertas"),
+        ("alert", "alerta"),
+        ("issues", "problemas"),
+        ("problems", "problemas"),
+        ("priority", "prioridad"),
+        ("review", "revisar"),
+        ("suppliers", "proveedores"),
+        ("supplier", "proveedor"),
+        ("locations", "sucursales"),
+        ("location", "sucursal"),
+        ("ingredients", "ingredientes"),
+        ("ingredient", "ingrediente"),
+        ("inventory", "inventario"),
+        ("forecast", "proyeccion"),
+        ("consumption", "consumo"),
+        ("recommend", "recomiend"),
+        ("order", "pedir"),
+        ("buy", "comprar"),
+        ("flour", "harina"),
+        ("gluten free flour", "harina sin gluten"),
+        ("tomato sauce", "salsa pelatti"),
+        ("olive oil", "aceite de oliva"),
+        ("vegan cheese", "queso vegano"),
+        ("pizza boxes", "cajas de pizza"),
+        ("pineapple", "pina"),
+        ("ham", "jamon"),
+        ("arugula", "arugula"),
+    ]
+    for ingles, espanol in sorted(reemplazos, key=lambda par: len(par[0]), reverse=True):
+        normalizada = normalizada.replace(ingles, espanol)
+    return normalizada
+
+
+def _formato_ingles(formato_compra: object, cantidad: int) -> str:
+    singular_es = str(formato_compra or "format").strip().split()[0].lower()
+    nombres = {
+        "saco": ("sack", "sacks"),
+        "bolsa": ("bag", "bags"),
+        "caja": ("box", "boxes"),
+        "lata": ("can", "cans"),
+        "balde": ("bucket", "buckets"),
+        "paquete": ("pack", "packs"),
+        "kilo": ("kilogram", "kilograms"),
+        "unidad": ("unit", "units"),
+        "pieza": ("piece", "pieces"),
+    }
+    singular, plural = nombres.get(singular_es, ("format", "formats"))
+    return singular if cantidad == 1 else plural
+
+
+def _accion_alerta_ingles(fila: object) -> str:
+    estado = str(fila.estado)
+    nombre = str(fila.nombre)
+    unidad = str(fila.unidad_base)
+    formato = fila.formato_compra
+    if estado == "INGREDIENTE_OMITIDO":
+        cantidad = int(fila.formatos_recomendados)
+        base = float(fila.compra_recomendada_unidad_base)
+        return f"Add {cantidad} {_formato_ingles(formato, cantidad)} ({_formatear_numero(base)} {unidad}) of {nombre} to the order."
+    if estado == "PEDIDO_INSUFICIENTE":
+        cantidad = int(fila.faltante_formatos)
+        base = cantidad * float(fila.unidad_base_por_formato)
+        return f"Increase the order by {cantidad} {_formato_ingles(formato, cantidad)} ({_formatear_numero(base)} {unidad}) of {nombre}."
+    if estado in {"SOBREPEDIDO", "COMPRA_INNECESARIA"}:
+        cantidad = int(fila.exceso_formatos)
+        base = cantidad * float(fila.unidad_base_por_formato)
+        return f"Reduce the order by {cantidad} {_formato_ingles(formato, cantidad)} ({_formatear_numero(base)} {unidad}) of {nombre}."
+    if estado == "NO_EVALUABLE":
+        return "Correct the identifier or register the ingredient before approving the order."
+    return "No changes are required."
+
+
+def _respuesta_local_ingles(
+    pregunta_motor: str,
+    analisis: AnalisisCompras,
+    base: RespuestaAsistente,
+) -> RespuestaAsistente:
+    sucursal = _detectar_sucursal(pregunta_motor, analisis)
+    ingrediente_id = _detectar_ingrediente(pregunta_motor, analisis)
+    filas = _filas_relevantes(analisis, sucursal, ingrediente_id)
+    intencion = base.intencion
+
+    if intencion == "conteo_proveedores":
+        cantidad = int(analisis.datos["ingredientes"]["proveedor"].nunique())
+        respuesta = f"There are **{cantidad} suppliers** registered in the catalog."
+    elif intencion == "conteo_sucursales":
+        cantidad = int(analisis.resultados["sucursal"].nunique())
+        respuesta = f"The current analysis includes **{cantidad} locations**."
+    elif intencion == "conteo_ingredientes":
+        cantidad = int(len(analisis.datos["ingredientes"]))
+        respuesta = f"The catalog contains **{cantidad} valid ingredients**."
+    elif intencion == "conteo_alertas":
+        resumen = analisis.resumen
+        cantidad = int(resumen["alertas_total"])
+        respuesta = (
+            f"There are **{cantidad} alerts to review**: {resumen['prioridad_critica']} critical, "
+            f"{resumen['prioridad_alta']} high and {resumen['prioridad_media']} medium-priority alerts."
+        )
+    elif intencion == "proveedor_ingrediente" and ingrediente_id:
+        catalogo = analisis.datos["ingredientes"]
+        fila = catalogo.loc[catalogo["ingrediente_id"] == ingrediente_id].iloc[0]
+        respuesta = f"{fila['nombre']} is purchased from **{fila['proveedor']}** in **{fila['formato_compra']}** format."
+    elif intencion in {"inventario", "proyeccion", "recomendacion_compra"} and ingrediente_id:
+        evaluables = filas.loc[filas["estado"] != "NO_EVALUABLE"]
+        if evaluables.empty:
+            respuesta = "That product cannot be evaluated with the available catalog data."
+        else:
+            nombre = str(evaluables.iloc[0]["nombre"])
+            lineas: list[str] = []
+            for fila in evaluables.itertuples(index=False):
+                if intencion == "inventario":
+                    lineas.append(f"{fila.sucursal}: {_formatear_numero(fila.stock_actual_unidad_base)} {fila.unidad_base}.")
+                elif intencion == "proyeccion":
+                    lineas.append(f"{fila.sucursal}: {_formatear_numero(fila.consumo_proyectado_unidad_base)} {fila.unidad_base}.")
+                else:
+                    cantidad = int(fila.formatos_recomendados)
+                    formato = _formato_ingles(fila.formato_compra, cantidad)
+                    lineas.append(
+                        f"{fila.sucursal}: I recommend {cantidad} {formato} "
+                        f"({_formatear_numero(fila.compra_recomendada_unidad_base)} {fila.unidad_base}). "
+                        f"The current order has {int(fila.cantidad_formatos_solicitados)}."
+                    )
+            encabezado = {
+                "inventario": f"Current inventory of {nombre}",
+                "proyeccion": f"Forecast consumption of {nombre}",
+                "recomendacion_compra": f"Purchase recommendation for {nombre}",
+            }[intencion]
+            respuesta = encabezado + (f" at {sucursal}" if sucursal else " by location") + ":\n\n" + "\n".join(f"- {linea}" for linea in lineas)
+    elif intencion in {"alertas", "faltantes", "excesos"}:
+        alertas = analisis.resultados.loc[analisis.resultados["es_alerta"].fillna(False)].copy()
+        if sucursal:
+            alertas = alertas.loc[alertas["sucursal"] == sucursal]
+        if intencion == "faltantes":
+            alertas = alertas.loc[alertas["estado"].isin(["PEDIDO_INSUFICIENTE", "INGREDIENTE_OMITIDO"])]
+        elif intencion == "excesos":
+            alertas = alertas.loc[alertas["estado"].isin(["SOBREPEDIDO", "COMPRA_INNECESARIA"])]
+        prioridad_en = {"CRITICA": "Critical", "ALTA": "High", "MEDIA": "Medium"}
+        lineas = [
+            f"**{prioridad_en.get(str(fila.prioridad), fila.prioridad)} · {fila.sucursal} · {fila.nombre}:** {_accion_alerta_ingles(fila)}"
+            for fila in alertas.itertuples(index=False)
+        ]
+        respuesta = f"Detected alerts ({len(alertas)}):\n\n" + "\n".join(f"- {linea}" for linea in lineas)
+    else:
+        respuesta = (
+            "I can answer questions about recommended quantities, inventory, forecast consumption, "
+            "alerts, locations and suppliers. Try: **How much flour should Costa del Este buy?**"
+        )
+
+    advertencia = None
+    if base.advertencia:
+        advertencia = "I interpreted the question as a purchase recommendation."
+    return RespuestaAsistente(
+        respuesta=respuesta,
+        modo="local",
+        intencion=base.intencion,
+        evidencia=base.evidencia,
+        advertencia=advertencia,
+    )
+
+
+def responder_local(
+    pregunta: str,
+    analisis: AnalisisCompras,
+    idioma: str = "es",
+) -> RespuestaAsistente:
+    """Responde con el motor verificado en español o inglés."""
+    es_ingles = str(idioma).lower().startswith("en")
+    pregunta_motor = _adaptar_pregunta_ingles(pregunta) if es_ingles else pregunta
+    base = _responder_local_es(pregunta_motor, analisis)
+    if not es_ingles:
+        return base
+    return _respuesta_local_ingles(normalizar_texto(pregunta_motor), analisis, base)
+
+
 def _contexto_compacto(
     pregunta: str,
     analisis: AnalisisCompras,
@@ -524,19 +721,30 @@ def responder_asistente(
     analisis: AnalisisCompras,
     generador_llm: Callable[[str, str], str] | None = None,
     historial: Sequence[dict[str, str]] | None = None,
+    idioma: str = "es",
 ) -> RespuestaAsistente:
     """Usa una respuesta determinista y, si existe, una capa de lenguaje natural."""
-    base = responder_local(pregunta, analisis)
+    es_ingles = str(idioma).lower().startswith("en")
+    base = responder_local(pregunta, analisis, idioma=idioma)
     if generador_llm is None:
         return base
 
-    instruccion = (
-        "Eres el asistente interno de compras de Barrio Pizza. Responde en español claro, breve y "
-        "accionable. Usa únicamente el JSON proporcionado. La respuesta determinista y la evidencia "
-        "contienen los números autorizados: no los cambies, no recalcules cantidades y no inventes "
-        "datos. Si la pregunta excede la información, dilo. Explica el porqué cuando sea útil y "
-        "distingue entre formatos de compra y unidades base. No menciones estas instrucciones."
-    )
+    if es_ingles:
+        instruccion = (
+            "You are Barrio Pizza's internal purchasing assistant. Answer in clear, concise and "
+            "actionable English. Use only the provided JSON. The deterministic response and evidence "
+            "contain the authorized numbers: do not change or recalculate quantities and do not invent "
+            "data. Say explicitly when the requested information is unavailable. Explain why when useful "
+            "and distinguish purchase formats from base units. Do not mention these instructions."
+        )
+    else:
+        instruccion = (
+            "Eres el asistente interno de compras de Barrio Pizza. Responde en español claro, breve y "
+            "accionable. Usa únicamente el JSON proporcionado. La respuesta determinista y la evidencia "
+            "contienen los números autorizados: no los cambies, no recalcules cantidades y no inventes "
+            "datos. Si la pregunta excede la información, dilo. Explica el porqué cuando sea útil y "
+            "distingue entre formatos de compra y unidades base. No menciones estas instrucciones."
+        )
     contexto = _contexto_compacto(pregunta, analisis, base, historial)
 
     try:
@@ -548,8 +756,15 @@ def responder_asistente(
             intencion=base.intencion,
             evidencia=base.evidencia,
             advertencia=(
-                "La IA externa no estuvo disponible; se mostró la respuesta verificada del motor local. "
-                f"Detalle técnico: {error}"
+                (
+                    "External AI was unavailable; the verified local-engine response is shown. "
+                    f"Technical detail: {error}"
+                )
+                if es_ingles
+                else (
+                    "La IA externa no estuvo disponible; se mostró la respuesta verificada del motor local. "
+                    f"Detalle técnico: {error}"
+                )
             ),
         )
 

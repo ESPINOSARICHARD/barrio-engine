@@ -96,3 +96,36 @@ def test_pregunta_fuera_de_alcance_explica_capacidades() -> None:
 
     assert respuesta.intencion == "ayuda"
     assert "cantidades recomendadas" in respuesta.respuesta
+
+
+def test_motor_local_responde_recomendacion_en_ingles() -> None:
+    respuesta = responder_local(
+        "How much flour should Costa del Este buy?",
+        _analisis_real(),
+        idioma="en",
+    )
+
+    assert respuesta.intencion == "recomendacion_compra"
+    assert "13 sacks" in respuesta.respuesta
+    assert "325 kg" in respuesta.respuesta
+    assert "current order has 6" in respuesta.respuesta
+
+
+def test_capa_llm_recibe_instruccion_en_ingles() -> None:
+    capturado: dict[str, str] = {}
+
+    def generador(instruccion: str, contenido: str) -> str:
+        capturado["instruccion"] = instruccion
+        capturado["contenido"] = contenido
+        return "There are 6 alerts to review."
+
+    respuesta = responder_asistente(
+        "How many alerts are there?",
+        _analisis_real(),
+        generador_llm=generador,
+        idioma="en",
+    )
+
+    assert respuesta.modo == "gemini"
+    assert "Answer in clear" in capturado["instruccion"]
+    assert "6 alerts" in capturado["contenido"]
