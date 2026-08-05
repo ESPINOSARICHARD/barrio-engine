@@ -8,6 +8,12 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.alertas import ErrorAlertas
+from src.asistente import (
+    ErrorAsistente,
+    crear_generador_gemini,
+    obtener_configuracion_gemini,
+    responder_asistente,
+)
 from src.calculos import ErrorCalculoCompras
 from src.carga_datos import ErrorCargaDatos, cargar_datos
 from src.dashboard import (
@@ -88,6 +94,11 @@ def _mostrar_tarjeta_alerta(fila: pd.Series) -> None:
         st.subheader(str(fila["titulo_alerta"]))
         st.write(str(fila["mensaje_alerta"]))
         st.markdown(f"**Acción:** {fila['accion_recomendada']}")
+
+
+@st.cache_resource(show_spinner=False)
+def _crear_generador_ia(api_key: str, modelo: str):
+    return crear_generador_gemini(api_key, modelo)
 
 
 _cargar_estilos()
@@ -185,6 +196,21 @@ except (
     st.stop()
 
 
+try:
+    secretos_streamlit = st.secrets
+except Exception:
+    secretos_streamlit = None
+
+clave_gemini, modelo_gemini = obtener_configuracion_gemini(secretos_streamlit)
+generador_ia = None
+error_configuracion_ia = None
+if clave_gemini:
+    try:
+        generador_ia = _crear_generador_ia(clave_gemini, modelo_gemini)
+    except ErrorAsistente as error:
+        error_configuracion_ia = str(error)
+
+
 st.markdown('<div class="eyebrow">OPERACIÓN SEMANAL · BARRIO PIZZA</div>', unsafe_allow_html=True)
 st.title("Centro Inteligente de Compras")
 st.write(
@@ -201,6 +227,7 @@ pestanas = st.tabs(
         "Centro de alertas",
         "Orden corregida",
         "Calidad y modelo",
+        "Asistente IA",
     ]
 )
 
@@ -646,3 +673,111 @@ with pestanas[3]:
 - No se inventan precios, clientes, vencimientos ni tiempos de entrega que no están en los datos.
             """
         )
+
+with pestanas[4]:
+    st.subheader("Asistente de compras")
+    st.caption(
+        "Pregunta en lenguaje natural. Las cantidades siempre provienen del motor de cálculo verificado."
+    )
+
+    if generador_ia is not None:
+        st.success(f"IA conectada · {modelo_gemini}")
+        st.caption(
+            "El modelo interpreta la pregunta y redacta la respuesta, pero no decide ni modifica cantidades."
+        )
+    else:
+        st.info("Modo local verificado")
+        st.caption(
+            "El asistente funciona sin internet para preguntas directas. Al configurar Gemini, también entenderá preguntas más flexibles y seguimientos."
+        )
+        if error_configuracion_ia:
+            with st.expander("Detalle de configuración"):
+                st.code(error_configuracion_ia)
+
+    st.markdown("#### Preguntas sugeridas")
+    sugerencias = [
+        "¿Qué debo revisar primero?",
+        "¿Cuánta harina debe comprar Costa del Este?",
+        "¿Qué están pidiendo de más?",
+        "¿Quién provee la mozzarella?",
+    ]
+    columnas_sugerencias = st.columns(4)
+    pregunta_sugerida = None
+    for indice, sugerencia in enumerate(sugerencias):
+        if columnas_sugerencias[indice].button(
+            sugerencia,
+            use_container_width=True,
+            key=f"sugerencia_asistente_{indice}",
+        ):
+            pregunta_sugerida = sugerencia
+
+    if "mensajes_asistente" not in st.session_state:
+        st.session_state.mensajes_asistente = [
+            {
+                "role": "assistant",
+                "content": (
+                    "Hola. Puedo ayudarte a consultar recomendaciones, inventario, consumo proyectado, "
+                    "alertas y proveedores."
+                ),
+                "modo": "local",
+                "evidencia": [],
+                "advertencia": None,
+            }
+        ]
+
+    for mensaje in st.session_state.mensajes_asistente:
+        with st.chat_message(mensaje["role"]):
+            st.markdown(mensaje["content"])
+            if mensaje.get("advertencia"):
+                st.warning(mensaje["advertencia"])
+            evidencia = mensaje.get("evidencia") or []
+            if mensaje["role"] == "assistant" and evidencia:
+                with st.expander("Datos usados para responder"):
+                    for elemento in evidencia:
+                        st.write(f"- {elemento}")
+
+    pregunta_escrita = st.chat_input(
+        "Ejemplo: ¿Cuántas cajas de mozzarella necesita Brisas del Golf?"
+    )
+    pregunta = pregunta_sugerida or pregunta_escrita
+
+    if pregunta:
+        mensaje_usuario = {"role": "user", "content": pregunta}
+        st.session_state.mensajes_asistente.append(mensaje_usuario)
+        with st.chat_message("user"):
+            st.markdown(pregunta)
+
+        historial = [
+            {"role": mensaje["role"], "content": mensaje["content"]}
+            for mensaje in st.session_state.mensajes_asistente[-8:]
+        ]
+        with st.chat_message("assistant"):
+            with st.spinner("Consultando los datos..."):
+                respuesta = responder_asistente(
+                    pregunta,
+                    analisis,
+                    generador_llm=generador_ia,
+                    historial=historial,
+                )
+            st.markdown(respuesta.respuesta)
+            if respuesta.advertencia:
+                st.warning(respuesta.advertencia)
+            if respuesta.evidencia:
+                with st.expander("Datos usados para responder"):
+                    for elemento in respuesta.evidencia:
+                        st.write(f"- {elemento}")
+
+        st.session_state.mensajes_asistente.append(
+            {
+                "role": "assistant",
+                "content": respuesta.respuesta,
+                "modo": respuesta.modo,
+                "evidencia": list(respuesta.evidencia),
+                "advertencia": respuesta.advertencia,
+            }
+        )
+
+    if st.button("Limpiar conversación", key="limpiar_asistente"):
+        st.session_state.mensajes_asistente = []
+        st.rerun()
+
