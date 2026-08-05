@@ -101,12 +101,14 @@ def _tarjeta_metrica(
     valor: object,
     nota: str,
     tono: str = "neutral",
+    compacto: bool = False,
 ) -> None:
+    clase_valor = "bp-metric-value bp-metric-value--compact" if compacto else "bp-metric-value"
     st.markdown(
         f"""
-        <div class="bp-metric bp-metric--{_seguro(tono)}">
+        <div class="bp-metric bp-metric--{_seguro(tono)}" role="group" aria-label="{_seguro(etiqueta)}: {_seguro(valor)}">
           <div class="bp-metric-label">{_seguro(etiqueta)}</div>
-          <div class="bp-metric-value">{_seguro(valor)}</div>
+          <div class="{clase_valor}">{_seguro(valor)}</div>
           <div class="bp-metric-note">{_seguro(nota)}</div>
         </div>
         """,
@@ -177,7 +179,7 @@ def _titulo_seccion(indice: str, titulo: str, descripcion: str) -> None:
 
 def _separador(texto: str) -> None:
     st.markdown(
-        f'<div class="bp-divider-label">{_seguro(texto)}</div>',
+        f'<div class="bp-divider-label" role="heading" aria-level="3">{_seguro(texto)}</div>',
         unsafe_allow_html=True,
     )
 
@@ -191,7 +193,7 @@ def _estilo_grafico(figura: go.Figure, *, altura: int = 360) -> go.Figure:
         title_font=dict(family="Arial Narrow, Segoe UI, Arial, sans-serif", size=17, color=COLOR_TEXTO),
         margin=dict(l=28, r=28, t=42, b=38),
         hoverlabel=dict(bgcolor=COLOR_TEXTO, font_color="#FFFFFF", bordercolor=COLOR_TEXTO),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     figura.update_xaxes(
         showgrid=False,
@@ -234,7 +236,7 @@ def _bandeja_alertas(filas: pd.DataFrame) -> None:
         recomendado = _formatear_numero(fila["formatos_recomendados"])
         st.markdown(
             f"""
-            <div class="bp-alert-row bp-alert-row--{tono}">
+            <div class="bp-alert-row bp-alert-row--{tono}" role="group" aria-label="Alerta {_seguro(prioridad)} de {_seguro(fila['nombre'])} en {_seguro(fila['sucursal'])}">
               <div class="bp-alert-cell"><small>Prioridad</small><span class="bp-priority bp-priority--{tono}">{_seguro(prioridad)}</span></div>
               <div class="bp-alert-cell"><small>Sucursal</small><strong>{_seguro(fila['sucursal'])}</strong></div>
               <div class="bp-alert-cell"><small>Ingrediente</small><strong>{_seguro(fila['nombre'])}</strong></div>
@@ -458,16 +460,17 @@ with pestanas[0]:
     alertas = filtrar_resultados(analisis.resultados, solo_alertas=True)
     faltantes = resumen["pedidos_insuficientes"] + resumen["ingredientes_omitidos"]
     excesos = resumen["sobrepedidos"] + resumen["compras_innecesarias"]
-    columnas_metricas = st.columns(5)
+    columnas_metricas = st.columns(3)
     with columnas_metricas[0]:
         _tarjeta_metrica("Alertas totales", resumen["alertas_total"], "Casos que requieren decisión", "brand")
     with columnas_metricas[1]:
         _tarjeta_metrica("Críticas", resumen["prioridad_critica"], "Resolver antes de aprobar", "critical")
     with columnas_metricas[2]:
         _tarjeta_metrica("Riesgo de quiebre", faltantes, "Insuficientes u omitidos", "high")
-    with columnas_metricas[3]:
+    columnas_metricas_secundarias = st.columns(2)
+    with columnas_metricas_secundarias[0]:
         _tarjeta_metrica("Sobrepedidos", excesos, "Capital o inventario de más", "medium")
-    with columnas_metricas[4]:
+    with columnas_metricas_secundarias[1]:
         _tarjeta_metrica("Orden correcta", f"{porcentaje_correcto:.1f}%", "Combinaciones sin ajuste", "good")
 
     if alertas.empty:
@@ -633,7 +636,7 @@ with pestanas[1]:
             f"""
             <div class="bp-case-banner">
               <span class="bp-priority bp-priority--{tono_caso}">{_seguro(prioridad_caso)}</span>
-              <h3>{_seguro(caso['nombre'])} · {_seguro(caso['sucursal'])}</h3>
+              <div class="bp-case-title" role="heading" aria-level="3">{_seguro(caso['nombre'])} · {_seguro(caso['sucursal'])}</div>
               <strong>{_seguro(estado_caso)} — {_seguro(caso['titulo_alerta'])}</strong>
               <p>{_seguro(caso['mensaje_alerta'])}</p>
               <div class="bp-case-action">Acción recomendada: {_seguro(caso['accion_recomendada'])}</div>
@@ -642,7 +645,7 @@ with pestanas[1]:
             unsafe_allow_html=True,
         )
 
-        metricas_caso = st.columns(5)
+        metricas_caso = st.columns(3)
         unidad = str(caso.get("unidad_base", ""))
         with metricas_caso[0]:
             _tarjeta_metrica("Consumo proyectado", _formatear_numero(caso["consumo_proyectado_unidad_base"]), unidad)
@@ -650,9 +653,10 @@ with pestanas[1]:
             _tarjeta_metrica("Inventario actual", _formatear_numero(caso["stock_actual_unidad_base"]), unidad)
         with metricas_caso[2]:
             _tarjeta_metrica("Solicitado", _formatear_numero(caso["cantidad_formatos_solicitados"]), "formatos")
-        with metricas_caso[3]:
+        metricas_caso_secundarias = st.columns(2)
+        with metricas_caso_secundarias[0]:
             _tarjeta_metrica("Recomendado", _formatear_numero(caso["formatos_recomendados"]), str(caso.get("formato_compra", "formatos")), "brand")
-        with metricas_caso[4]:
+        with metricas_caso_secundarias[1]:
             _tarjeta_metrica("Cobertura", _formatear_porcentaje(caso["cobertura_proyectada_pct"]), "consumo proyectado")
 
         proyeccion = proyeccion_del_caso(
@@ -724,25 +728,23 @@ with pestanas[1]:
             with st.expander("Cómo se calculó la proyección", expanded=True):
                 st.write(str(proyeccion["explicacion_proyeccion"]))
                 columnas_modelo = st.columns(4)
-                columnas_modelo[0].metric(
-                    "Método",
-                    METODO_ETIQUETAS.get(
+                with columnas_modelo[0]:
+                    _tarjeta_metrica(
+                        "Método",
+                        METODO_ETIQUETAS.get(
                         str(proyeccion["metodo_proyeccion"]),
                         str(proyeccion["metodo_proyeccion"]),
-                    ),
-                )
-                columnas_modelo[1].metric(
-                    "MAE retrospectivo",
-                    _formatear_numero(proyeccion["mae_backtest"]),
-                )
-                columnas_modelo[2].metric(
-                    "WAPE retrospectivo",
-                    _formatear_porcentaje(proyeccion["wape_backtest_pct"]),
-                )
-                columnas_modelo[3].metric(
-                    "Semanas atípicas",
-                    str(proyeccion["semanas_atipicas"] or "Ninguna"),
-                )
+                        ),
+                        "modelo seleccionado",
+                        "brand",
+                        compacto=True,
+                    )
+                with columnas_modelo[1]:
+                    _tarjeta_metrica("MAE retrospectivo", _formatear_numero(proyeccion["mae_backtest"]), "error absoluto")
+                with columnas_modelo[2]:
+                    _tarjeta_metrica("WAPE retrospectivo", _formatear_porcentaje(proyeccion["wape_backtest_pct"]), "error porcentual")
+                with columnas_modelo[3]:
+                    _tarjeta_metrica("Semanas atípicas", str(proyeccion["semanas_atipicas"] or "Ninguna"), "detectadas en la serie")
 
             with st.expander("Ver cálculo de compra auditable"):
                 tabla_calculo = pd.DataFrame(
@@ -881,6 +883,16 @@ with pestanas[3]:
                 "bloqueante": "¿Bloquea el análisis?",
             }
         )
+        tabla_calidad = tabla_calidad[
+            [
+                "Severidad",
+                "Hallazgo",
+                "Fuente",
+                "Sucursal",
+                "Ingrediente",
+                "¿Bloquea el análisis?",
+            ]
+        ]
         st.dataframe(
             tabla_calidad,
             hide_index=True,
