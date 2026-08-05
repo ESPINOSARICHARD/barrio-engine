@@ -32,7 +32,6 @@ from src.dashboard import (
     porcentaje_orden_correcta,
     preparar_orden_por_proveedor,
     preparar_serie_detalle,
-    preparar_tabla_alertas,
     proyeccion_del_caso,
     resumen_por_estado,
     resumen_por_sucursal,
@@ -548,8 +547,11 @@ with pestanas[0]:
 
 
 with pestanas[1]:
-    st.subheader("Bandeja de decisiones")
-    st.caption("Filtra las alertas y abre cada caso para ver el cálculo completo.")
+    _titulo_seccion(
+        "02 · Investigar",
+        "Centro de alertas",
+        "Una bandeja de decisiones: filtra, compara la cantidad pedida y abre el expediente auditable de cada caso.",
+    )
 
     sucursales_disponibles = sorted(analisis.resultados["sucursal"].dropna().unique())
     estados_disponibles = [
@@ -563,24 +565,26 @@ with pestanas[1]:
         if prioridad in analisis.resultados["prioridad"].unique()
     ]
 
-    filtros = st.columns(3)
-    filtro_sucursales = filtros[0].multiselect(
-        "Sucursal",
-        sucursales_disponibles,
-        placeholder="Todas",
-    )
-    filtro_prioridades = filtros[1].multiselect(
-        "Prioridad",
-        prioridades_disponibles,
-        format_func=lambda valor: PRIORIDAD_ETIQUETAS.get(valor, valor),
-        placeholder="Todas",
-    )
-    filtro_estados = filtros[2].multiselect(
-        "Tipo de resultado",
-        estados_disponibles,
-        format_func=lambda valor: ESTADO_ETIQUETAS.get(valor, valor),
-        placeholder="Todos",
-    )
+    with st.container(border=True):
+        st.markdown("#### Filtrar bandeja")
+        filtros = st.columns(3)
+        filtro_sucursales = filtros[0].multiselect(
+            "Sucursal",
+            sucursales_disponibles,
+            placeholder="Todas las sucursales",
+        )
+        filtro_prioridades = filtros[1].multiselect(
+            "Prioridad",
+            prioridades_disponibles,
+            format_func=lambda valor: PRIORIDAD_ETIQUETAS.get(valor, valor),
+            placeholder="Todas las prioridades",
+        )
+        filtro_estados = filtros[2].multiselect(
+            "Tipo de problema",
+            estados_disponibles,
+            format_func=lambda valor: ESTADO_ETIQUETAS.get(valor, valor),
+            placeholder="Todos los tipos",
+        )
 
     filtradas = filtrar_resultados(
         analisis.resultados,
@@ -590,27 +594,26 @@ with pestanas[1]:
         prioridades=filtro_prioridades,
     )
 
-    st.metric("Alertas visibles", len(filtradas))
+    st.markdown(
+        f'<div class="bp-inline-status"><span class="bp-dot bp-dot--warn"></span>{len(filtradas)} alertas visibles</div>',
+        unsafe_allow_html=True,
+    )
     if filtradas.empty:
-        st.info("No hay alertas que coincidan con los filtros.")
+        st.info("No hay alertas con esta combinación de filtros. Ajusta la búsqueda para continuar.")
     else:
-        st.dataframe(
-            preparar_tabla_alertas(filtradas),
-            hide_index=True,
-            use_container_width=True,
-            height=min(420, 90 + len(filtradas) * 46),
-        )
+        _bandeja_alertas(filtradas)
 
         opciones = {
-            f"{fila['prioridad']} · {fila['sucursal']} · {fila['nombre']} — {fila['titulo_alerta']}": (
+            f"{PRIORIDAD_ETIQUETAS.get(str(fila['prioridad']), fila['prioridad'])} · {fila['sucursal']} · {fila['nombre']} — {fila['titulo_alerta']}": (
                 str(fila["sucursal"]),
                 str(fila["ingrediente_id"]),
             )
             for _, fila in filtradas.iterrows()
         }
         seleccion = st.selectbox(
-            "Abrir detalle",
+            "Abrir expediente de alerta",
             options=list(opciones),
+            help="Muestra el impacto, la acción, el histórico y el cálculo de la alerta seleccionada.",
         )
         sucursal, ingrediente_id = opciones[seleccion]
         caso = obtener_caso(
@@ -619,38 +622,38 @@ with pestanas[1]:
             ingrediente_id=ingrediente_id,
         )
 
-        st.divider()
+        _separador("Expediente operativo")
+        prioridad_caso = PRIORIDAD_ETIQUETAS.get(str(caso["prioridad"]), caso["prioridad"])
+        estado_caso = ESTADO_ETIQUETAS.get(str(caso["estado"]), caso["estado"])
+        tono_caso = {"CRITICA": "critical", "ALTA": "high", "MEDIA": "medium"}.get(
+            str(caso["prioridad"]),
+            "neutral",
+        )
         st.markdown(
-            f"### {caso['nombre']} · {caso['sucursal']}"
+            f"""
+            <div class="bp-case-banner">
+              <span class="bp-priority bp-priority--{tono_caso}">{_seguro(prioridad_caso)}</span>
+              <h3>{_seguro(caso['nombre'])} · {_seguro(caso['sucursal'])}</h3>
+              <strong>{_seguro(estado_caso)} — {_seguro(caso['titulo_alerta'])}</strong>
+              <p>{_seguro(caso['mensaje_alerta'])}</p>
+              <div class="bp-case-action">Acción recomendada: {_seguro(caso['accion_recomendada'])}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-        st.caption(
-            f"{PRIORIDAD_ETIQUETAS.get(str(caso['prioridad']), caso['prioridad'])} · "
-            f"{ESTADO_ETIQUETAS.get(str(caso['estado']), caso['estado'])}"
-        )
-        st.write(str(caso["mensaje_alerta"]))
-        st.markdown(f"**Acción recomendada:** {caso['accion_recomendada']}")
 
         metricas_caso = st.columns(5)
-        metricas_caso[0].metric(
-            "Consumo proyectado",
-            f"{_formatear_numero(caso['consumo_proyectado_unidad_base'])} {caso.get('unidad_base', '')}",
-        )
-        metricas_caso[1].metric(
-            "Inventario actual",
-            f"{_formatear_numero(caso['stock_actual_unidad_base'])} {caso.get('unidad_base', '')}",
-        )
-        metricas_caso[2].metric(
-            "Formatos solicitados",
-            _formatear_numero(caso["cantidad_formatos_solicitados"]),
-        )
-        metricas_caso[3].metric(
-            "Formatos recomendados",
-            _formatear_numero(caso["formatos_recomendados"]),
-        )
-        metricas_caso[4].metric(
-            "Cobertura con orden",
-            _formatear_porcentaje(caso["cobertura_proyectada_pct"]),
-        )
+        unidad = str(caso.get("unidad_base", ""))
+        with metricas_caso[0]:
+            _tarjeta_metrica("Consumo proyectado", _formatear_numero(caso["consumo_proyectado_unidad_base"]), unidad)
+        with metricas_caso[1]:
+            _tarjeta_metrica("Inventario actual", _formatear_numero(caso["stock_actual_unidad_base"]), unidad)
+        with metricas_caso[2]:
+            _tarjeta_metrica("Solicitado", _formatear_numero(caso["cantidad_formatos_solicitados"]), "formatos")
+        with metricas_caso[3]:
+            _tarjeta_metrica("Recomendado", _formatear_numero(caso["formatos_recomendados"]), str(caso.get("formato_compra", "formatos")), "brand")
+        with metricas_caso[4]:
+            _tarjeta_metrica("Cobertura", _formatear_porcentaje(caso["cobertura_proyectada_pct"]), "consumo proyectado")
 
         proyeccion = proyeccion_del_caso(
             analisis.proyecciones,
@@ -660,9 +663,11 @@ with pestanas[1]:
 
         if proyeccion is None:
             st.error(
-                "Este producto no puede proyectarse porque no existe en el catálogo."
+                "No se puede proyectar este producto porque no existe en el catálogo. "
+                "Corrige el identificador o registra el ingrediente antes de aprobar la compra."
             )
         else:
+            _separador("Consumo y proyección")
             serie = preparar_serie_detalle(
                 analisis.datos["consumo_historico"],
                 analisis.proyecciones,
@@ -677,6 +682,8 @@ with pestanas[1]:
                     y=historico["consumo_unidad_base"],
                     mode="lines+markers",
                     name="Consumo histórico",
+                    line=dict(color="#111111", width=3),
+                    marker=dict(color="#111111", size=7),
                 )
             )
             atipicos = historico.loc[historico["es_atipico"]]
@@ -686,34 +693,35 @@ with pestanas[1]:
                         x=atipicos["semana"],
                         y=atipicos["consumo_unidad_base"],
                         mode="markers",
-                        marker=dict(size=14, symbol="x"),
+                        marker=dict(size=14, symbol="x", color="#B84C00", line=dict(width=2)),
                         name="Semana atípica",
                     )
                 )
             proyectado = serie.loc[serie["tipo"] == "Proyección"]
+            punto_anterior = historico.iloc[-1]
             figura_detalle.add_trace(
                 go.Scatter(
-                    x=proyectado["semana"],
-                    y=proyectado["consumo_unidad_base"],
-                    mode="markers",
-                    marker=dict(size=15, symbol="diamond"),
-                    name="Proyección",
+                    x=[punto_anterior["semana"], proyectado.iloc[0]["semana"]],
+                    y=[punto_anterior["consumo_unidad_base"], proyectado.iloc[0]["consumo_unidad_base"]],
+                    mode="lines+markers",
+                    line=dict(color="#C9251A", width=3, dash="dot"),
+                    marker=dict(size=[0, 15], symbol="diamond", color="#C9251A"),
+                    name="Próxima semana",
                 )
             )
             figura_detalle.update_layout(
                 title="Consumo histórico y próxima semana",
                 xaxis_title="Semana",
                 yaxis_title=str(caso["unidad_base"]),
-                margin=dict(l=10, r=10, t=50, b=10),
                 hovermode="x unified",
             )
             st.plotly_chart(
-                figura_detalle,
-                use_container_width=True,
+                _estilo_grafico(figura_detalle, altura=390),
+                width="stretch",
                 config={"displayModeBar": False},
             )
 
-            with st.expander("Por qué se proyectó así", expanded=True):
+            with st.expander("Cómo se calculó la proyección", expanded=True):
                 st.write(str(proyeccion["explicacion_proyeccion"]))
                 columnas_modelo = st.columns(4)
                 columnas_modelo[0].metric(
@@ -736,19 +744,19 @@ with pestanas[1]:
                     str(proyeccion["semanas_atipicas"] or "Ninguna"),
                 )
 
-            with st.expander("Ver cálculo de compra"):
-                st.code(
-                    "\n".join(
-                        [
-                            f"Consumo proyectado = {_formatear_numero(caso['consumo_proyectado_unidad_base'])} {caso['unidad_base']}",
-                            f"Inventario actual = {_formatear_numero(caso['stock_actual_unidad_base'])} {caso['unidad_base']}",
-                            f"Necesidad neta = {_formatear_numero(caso['necesidad_neta_unidad_base'])} {caso['unidad_base']}",
-                            f"Formato = {caso['formato_compra']}",
-                            f"Formatos recomendados = {_formatear_numero(caso['formatos_recomendados'])}",
-                            f"Formatos solicitados = {_formatear_numero(caso['cantidad_formatos_solicitados'])}",
-                        ]
-                    )
+            with st.expander("Ver cálculo de compra auditable"):
+                tabla_calculo = pd.DataFrame(
+                    [
+                        ("1. Consumo proyectado", f"{_formatear_numero(caso['consumo_proyectado_unidad_base'])} {caso['unidad_base']}"),
+                        ("2. Inventario disponible", f"{_formatear_numero(caso['stock_actual_unidad_base'])} {caso['unidad_base']}"),
+                        ("3. Necesidad neta", f"{_formatear_numero(caso['necesidad_neta_unidad_base'])} {caso['unidad_base']}"),
+                        ("4. Presentación de compra", str(caso["formato_compra"])),
+                        ("5. Cantidad recomendada", f"{_formatear_numero(caso['formatos_recomendados'])} formatos"),
+                        ("6. Cantidad solicitada", f"{_formatear_numero(caso['cantidad_formatos_solicitados'])} formatos"),
+                    ],
+                    columns=["Paso", "Valor usado"],
                 )
+                st.table(tabla_calculo)
 
 
 with pestanas[2]:
