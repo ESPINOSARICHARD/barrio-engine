@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import escape
 from pathlib import Path
 
 import pandas as pd
@@ -41,24 +42,28 @@ from src.proyecciones import ErrorProyeccion
 
 RAIZ = Path(__file__).resolve().parent
 COLORES_PRIORIDAD = {
-    "CRITICA": "#B42318",
-    "ALTA": "#E77728",
-    "MEDIA": "#E0A82E",
-    "SIN_ALERTA": "#667085",
+    "CRITICA": "#871D16",
+    "ALTA": "#B84C00",
+    "MEDIA": "#8A6500",
+    "SIN_ALERTA": "#65655F",
 }
 COLORES_ESTADO = {
-    "Pedido correcto": "#2E7D5B",
-    "Sin compra necesaria": "#7A8B5A",
-    "Pedido insuficiente": "#C84031",
-    "Sobrepedido": "#E77728",
-    "Ingrediente omitido": "#8F2D22",
-    "Compra innecesaria": "#B86B24",
-    "No evaluable": "#4B5563",
+    "Pedido correcto": "#187144",
+    "Sin compra necesaria": "#5D765E",
+    "Pedido insuficiente": "#C9251A",
+    "Sobrepedido": "#B84C00",
+    "Ingrediente omitido": "#871D16",
+    "Compra innecesaria": "#8A6500",
+    "No evaluable": "#65655F",
 }
+COLOR_TEXTO = "#111111"
+COLOR_MUTED = "#65655F"
+COLOR_BORDE = "#DEDEDA"
+COLOR_FONDO = "#FFFFFF"
 
 
 st.set_page_config(
-    page_title="Centro Inteligente de Compras",
+    page_title="Inteligencia de Compras · Barrio Pizza",
     page_icon="🍕",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -87,13 +92,195 @@ def _formatear_porcentaje(valor: object) -> str:
     return "—" if numero is None else f"{numero:.1f}%"
 
 
-def _mostrar_tarjeta_alerta(fila: pd.Series) -> None:
-    prioridad = PRIORIDAD_ETIQUETAS.get(str(fila["prioridad"]), str(fila["prioridad"]))
-    with st.container(border=True):
-        st.caption(f"PRIORIDAD {prioridad.upper()} · {fila['sucursal']}")
-        st.subheader(str(fila["titulo_alerta"]))
-        st.write(str(fila["mensaje_alerta"]))
-        st.markdown(f"**Acción:** {fila['accion_recomendada']}")
+def _seguro(valor: object) -> str:
+    """Escapa valores de datos antes de insertarlos en fragmentos HTML."""
+    return escape(str(valor), quote=True)
+
+
+def _tarjeta_metrica(
+    etiqueta: str,
+    valor: object,
+    nota: str,
+    tono: str = "neutral",
+) -> None:
+    st.markdown(
+        f"""
+        <div class="bp-metric bp-metric--{_seguro(tono)}">
+          <div class="bp-metric-label">{_seguro(etiqueta)}</div>
+          <div class="bp-metric-value">{_seguro(valor)}</div>
+          <div class="bp-metric-note">{_seguro(nota)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _contexto_semana(consumo_historico: pd.DataFrame) -> str:
+    semanas = consumo_historico.get("semana", pd.Series(dtype=str)).astype(str)
+    numeros = pd.to_numeric(semanas.str.extract(r"(\d+)$")[0], errors="coerce")
+    if numeros.dropna().empty:
+        return "Ciclo semanal"
+    return f"Proyección S{int(numeros.max()) + 1}"
+
+
+def _encabezado_producto(
+    *,
+    fuente_datos: str,
+    contexto_semana: str,
+    ia_conectada: bool,
+    modelo_ia: str,
+) -> None:
+    estado_ia = f"IA conectada · {modelo_ia}" if ia_conectada else "Modo local disponible"
+    punto_ia = "ok" if ia_conectada else "warn"
+    st.markdown(
+        f"""
+        <header class="bp-header" role="banner">
+          <div>
+            <div class="bp-wordmark">Barrio Pizza · Panamá</div>
+            <h1>Inteligencia de compras</h1>
+            <p>Centro de control semanal para detectar riesgos, corregir cantidades y preparar compras por proveedor.</p>
+          </div>
+          <div class="bp-status-grid" aria-label="Estado de la operación">
+            <div class="bp-status-item">
+              <span class="bp-status-label">Semana</span>
+              <span class="bp-status-value"><span class="bp-dot bp-dot--ok"></span><span>{_seguro(contexto_semana)}</span></span>
+            </div>
+            <div class="bp-status-item">
+              <span class="bp-status-label">Fuente activa</span>
+              <span class="bp-status-value"><span class="bp-dot bp-dot--ok"></span><span>{_seguro(fuente_datos)}</span></span>
+            </div>
+            <div class="bp-status-item">
+              <span class="bp-status-label">Motor de cálculo</span>
+              <span class="bp-status-value"><span class="bp-dot bp-dot--ok"></span><span>Análisis listo</span></span>
+            </div>
+            <div class="bp-status-item">
+              <span class="bp-status-label">Asistente</span>
+              <span class="bp-status-value"><span class="bp-dot bp-dot--{punto_ia}"></span><span>{_seguro(estado_ia)}</span></span>
+            </div>
+          </div>
+        </header>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _titulo_seccion(indice: str, titulo: str, descripcion: str) -> None:
+    st.markdown(
+        f'<div class="bp-section-kicker">{_seguro(indice)}</div>',
+        unsafe_allow_html=True,
+    )
+    st.header(titulo)
+    st.markdown(
+        f'<p class="bp-section-intro">{_seguro(descripcion)}</p>',
+        unsafe_allow_html=True,
+    )
+
+
+def _separador(texto: str) -> None:
+    st.markdown(
+        f'<div class="bp-divider-label">{_seguro(texto)}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _estilo_grafico(figura: go.Figure, *, altura: int = 360) -> go.Figure:
+    figura.update_layout(
+        height=altura,
+        paper_bgcolor=COLOR_FONDO,
+        plot_bgcolor=COLOR_FONDO,
+        font=dict(family="Inter, Segoe UI, Arial, sans-serif", color=COLOR_TEXTO, size=12),
+        title_font=dict(family="Arial Narrow, Segoe UI, Arial, sans-serif", size=17, color=COLOR_TEXTO),
+        margin=dict(l=28, r=28, t=42, b=38),
+        hoverlabel=dict(bgcolor=COLOR_TEXTO, font_color="#FFFFFF", bordercolor=COLOR_TEXTO),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+    )
+    figura.update_xaxes(
+        showgrid=False,
+        linecolor=COLOR_BORDE,
+        tickfont=dict(color=COLOR_MUTED),
+        title_font=dict(color=COLOR_MUTED),
+    )
+    figura.update_yaxes(
+        gridcolor="#ECECE8",
+        zeroline=False,
+        linecolor=COLOR_BORDE,
+        tickfont=dict(color=COLOR_MUTED),
+        title_font=dict(color=COLOR_MUTED),
+    )
+    return figura
+
+
+def _ajuste_alerta(fila: pd.Series) -> str:
+    solicitado = limpiar_infinito(fila.get("cantidad_formatos_solicitados"))
+    recomendado = limpiar_infinito(fila.get("formatos_recomendados"))
+    if solicitado is None or recomendado is None:
+        return "Revisar datos"
+    diferencia = int(round(recomendado - solicitado))
+    if diferencia > 0:
+        return f"Agregar {diferencia}"
+    if diferencia < 0:
+        return f"Reducir {abs(diferencia)}"
+    return "Sin cambio"
+
+
+def _bandeja_alertas(filas: pd.DataFrame) -> None:
+    for _, fila in filas.iterrows():
+        prioridad_codigo = str(fila["prioridad"])
+        prioridad = PRIORIDAD_ETIQUETAS.get(prioridad_codigo, prioridad_codigo)
+        tono = {"CRITICA": "critical", "ALTA": "high", "MEDIA": "medium"}.get(
+            prioridad_codigo,
+            "neutral",
+        )
+        solicitado = _formatear_numero(fila["cantidad_formatos_solicitados"])
+        recomendado = _formatear_numero(fila["formatos_recomendados"])
+        st.markdown(
+            f"""
+            <div class="bp-alert-row bp-alert-row--{tono}">
+              <div class="bp-alert-cell"><small>Prioridad</small><span class="bp-priority bp-priority--{tono}">{_seguro(prioridad)}</span></div>
+              <div class="bp-alert-cell"><small>Sucursal</small><strong>{_seguro(fila['sucursal'])}</strong></div>
+              <div class="bp-alert-cell"><small>Ingrediente</small><strong>{_seguro(fila['nombre'])}</strong></div>
+              <div class="bp-alert-cell"><small>Solicitado → recomendado</small><strong>{_seguro(solicitado)} → {_seguro(recomendado)} · {_seguro(_ajuste_alerta(fila))}</strong></div>
+              <div class="bp-alert-action"><small>Acción</small><strong>{_seguro(fila['accion_recomendada'])}</strong></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def _orden_para_interfaz(orden: pd.DataFrame) -> pd.DataFrame:
+    tabla = orden.copy()
+    tabla["ajuste_interfaz"] = (
+        tabla["cantidad_formatos_recomendada"] - tabla["cantidad_formatos_original"]
+    )
+    tabla["estado_interfaz"] = tabla["estado"].map(ESTADO_ETIQUETAS).fillna(tabla["estado"])
+    tabla = tabla[
+        [
+            "proveedor",
+            "sucursal",
+            "nombre",
+            "formato_compra",
+            "cantidad_formatos_original",
+            "cantidad_formatos_recomendada",
+            "ajuste_interfaz",
+            "cantidad_unidad_base_recomendada",
+            "unidad_base",
+            "estado_interfaz",
+        ]
+    ]
+    return tabla.rename(
+        columns={
+            "proveedor": "Proveedor",
+            "sucursal": "Sucursal",
+            "nombre": "Ingrediente",
+            "formato_compra": "Presentación",
+            "cantidad_formatos_original": "Cantidad original",
+            "cantidad_formatos_recomendada": "Cantidad recomendada",
+            "ajuste_interfaz": "Ajuste",
+            "cantidad_unidad_base_recomendada": "Total recomendado",
+            "unidad_base": "Unidad",
+            "estado_interfaz": "Resultado",
+        }
+    )
 
 
 @st.cache_resource(show_spinner=False)
@@ -106,16 +293,25 @@ _cargar_estilos()
 try:
     datos_base = cargar_datos()
 except ErrorCargaDatos as error:
-    st.error(str(error))
+    st.error(f"No pudimos cargar los datos base. {error}", icon="🚫")
     st.stop()
 
 
 with st.sidebar:
-    st.markdown("## Datos de la semana")
-    st.caption("Carga una orden nueva o trabaja con el archivo incluido en el reto.")
+    st.markdown(
+        """
+        <div class="bp-side-brand">
+          <strong>BARRIO PIZZA</strong>
+          <span>Control de compras</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("### Preparar la revisión")
+    st.caption("Elige la orden de trabajo. Cada cambio vuelve a ejecutar la auditoría completa.")
 
     fuente = st.radio(
-        "Fuente de la orden",
+        "1. Fuente de la orden",
         options=["Orden del reto", "Cargar otro CSV"],
         index=0,
     )
@@ -125,23 +321,23 @@ with st.sidebar:
 
     if fuente == "Cargar otro CSV":
         archivo = st.file_uploader(
-            "Orden de compra (.csv)",
+            "2. Orden de compra (.csv)",
             type=["csv"],
             help="Debe contener sucursal, ingrediente_id y cantidad_formatos.",
         )
         if archivo is None:
-            st.info("Carga un archivo para reemplazar la orden del reto.")
+            st.info("Selecciona un CSV para iniciar la validación.")
         else:
             try:
                 orden_activa = leer_orden_csv(archivo.getvalue())
                 fuente_texto = archivo.name
-                st.success("Orden cargada correctamente.")
+                st.success("CSV recibido. La orden fue validada y recalculada.")
             except ErrorDashboard as error:
-                st.error(str(error))
+                st.error(f"No pudimos usar este archivo. {error}")
                 st.stop()
 
     permitir_edicion = st.toggle(
-        "Editar cantidades en la interfaz",
+        "3. Activar editor de cantidades",
         value=False,
         help="Completa ingredientes omitidos con cero y recalcula al editar.",
     )
@@ -157,11 +353,11 @@ with st.sidebar:
             st.error(str(error))
             st.stop()
 
-        st.caption("Edita solo la columna Cantidad. Los formatos deben ser enteros.")
+        st.caption("Edita Cantidad. Sucursal e ingrediente quedan protegidos.")
         orden_activa = st.data_editor(
             orden_editor,
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
             height=390,
             disabled=["sucursal", "ingrediente_id"],
             num_rows="fixed",
@@ -180,7 +376,24 @@ with st.sidebar:
         fuente_texto += " · edición activa"
 
     st.divider()
-    st.caption("El análisis se actualiza automáticamente con cada cambio.")
+    st.markdown(
+        """
+        <div class="bp-inline-status">
+          <span class="bp-dot bp-dot--ok"></span>
+          Recálculo automático activo
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.caption("Flujo: cargar → auditar → corregir → descargar")
+    st.markdown(
+        """
+        <div class="bp-side-step"><b>1</b><span>Revisa las prioridades del resumen.</span></div>
+        <div class="bp-side-step"><b>2</b><span>Abre el expediente de cada alerta.</span></div>
+        <div class="bp-side-step"><b>3</b><span>Descarga la orden lista por proveedor.</span></div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 try:
@@ -191,8 +404,12 @@ except (
     ErrorProyeccion,
     ErrorAlertas,
 ) as error:
-    st.error("No se pudo completar el análisis de compras.")
-    st.code(str(error))
+    st.error(
+        "La revisión se detuvo porque los datos contienen un error bloqueante. "
+        "Corrige el archivo indicado y vuelve a cargarlo."
+    )
+    with st.expander("Ver detalle técnico del error"):
+        st.code(str(error))
     st.stop()
 
 
@@ -211,12 +428,12 @@ if clave_gemini:
         error_configuracion_ia = str(error)
 
 
-st.markdown('<div class="eyebrow">OPERACIÓN SEMANAL · BARRIO PIZZA</div>', unsafe_allow_html=True)
-st.title("Centro Inteligente de Compras")
-st.write(
-    "Revisión preventiva de órdenes, consumo proyectado e inventario para decidir qué corregir antes de comprar."
+_encabezado_producto(
+    fuente_datos=fuente_texto,
+    contexto_semana=_contexto_semana(analisis.datos["consumo_historico"]),
+    ia_conectada=generador_ia is not None,
+    modelo_ia=modelo_gemini,
 )
-st.caption(f"Fuente activa: {fuente_texto}")
 
 resumen = analisis.resumen
 porcentaje_correcto = porcentaje_orden_correcta(resumen)
@@ -233,90 +450,101 @@ pestanas = st.tabs(
 
 
 with pestanas[0]:
-    st.subheader("Estado general de las órdenes")
-
-    columnas_metricas = st.columns(5)
-    columnas_metricas[0].metric("Alertas por revisar", resumen["alertas_total"])
-    columnas_metricas[1].metric("Prioridad crítica", resumen["prioridad_critica"])
-    columnas_metricas[2].metric(
-        "Pedidos insuficientes",
-        resumen["pedidos_insuficientes"] + resumen["ingredientes_omitidos"],
+    _titulo_seccion(
+        "01 · Decidir",
+        "Resumen ejecutivo",
+        "Lo importante de la revisión semanal, ordenado por riesgo y listo para actuar.",
     )
-    columnas_metricas[3].metric(
-        "Excesos detectados",
-        resumen["sobrepedidos"] + resumen["compras_innecesarias"],
-    )
-    columnas_metricas[4].metric("Orden sin corrección", f"{porcentaje_correcto:.1f}%")
 
     alertas = filtrar_resultados(analisis.resultados, solo_alertas=True)
+    faltantes = resumen["pedidos_insuficientes"] + resumen["ingredientes_omitidos"]
+    excesos = resumen["sobrepedidos"] + resumen["compras_innecesarias"]
+    columnas_metricas = st.columns(5)
+    with columnas_metricas[0]:
+        _tarjeta_metrica("Alertas totales", resumen["alertas_total"], "Casos que requieren decisión", "brand")
+    with columnas_metricas[1]:
+        _tarjeta_metrica("Críticas", resumen["prioridad_critica"], "Resolver antes de aprobar", "critical")
+    with columnas_metricas[2]:
+        _tarjeta_metrica("Riesgo de quiebre", faltantes, "Insuficientes u omitidos", "high")
+    with columnas_metricas[3]:
+        _tarjeta_metrica("Sobrepedidos", excesos, "Capital o inventario de más", "medium")
+    with columnas_metricas[4]:
+        _tarjeta_metrica("Orden correcta", f"{porcentaje_correcto:.1f}%", "Combinaciones sin ajuste", "good")
+
     if alertas.empty:
-        st.success("La orden no requiere correcciones.")
+        st.success("Revisión completa: la orden no requiere correcciones.")
     else:
         primera = alertas.iloc[0]
-        st.warning(
-            f"Empiece por {primera['sucursal']} · {primera['nombre']}: "
-            f"{primera['accion_recomendada']}"
+        st.markdown(
+            f"""
+            <div class="bp-action" role="status">
+              <div class="bp-action-index">01</div>
+              <div>
+                <div class="bp-action-label">Primera acción recomendada · {_seguro(primera['sucursal'])} · {_seguro(primera['nombre'])}</div>
+                <div class="bp-action-copy">{_seguro(primera['accion_recomendada'])}</div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
-    col_grafico_1, col_grafico_2 = st.columns([1.25, 1])
+    _separador("Mapa operativo")
+    col_grafico_1, col_grafico_2 = st.columns([1.15, 1])
 
     with col_grafico_1:
-        st.markdown("#### Alertas por sucursal")
         por_sucursal = resumen_por_sucursal(analisis.resultados)
         if por_sucursal.empty:
             st.info("No existen alertas para graficar.")
         else:
-            por_sucursal["Prioridad"] = por_sucursal["prioridad"].map(
-                PRIORIDAD_ETIQUETAS
-            )
             figura_sucursal = px.bar(
                 por_sucursal,
                 x="sucursal",
                 y="cantidad",
                 color="prioridad",
                 barmode="stack",
-                labels={"sucursal": "Sucursal", "cantidad": "Alertas"},
+                title="Alertas por sucursal",
+                labels={"sucursal": "Sucursal", "cantidad": "Alertas", "prioridad": "Prioridad"},
                 color_discrete_map=COLORES_PRIORIDAD,
                 category_orders={"prioridad": ["CRITICA", "ALTA", "MEDIA"]},
             )
-            figura_sucursal.update_layout(
-                legend_title_text="Prioridad",
-                margin=dict(l=10, r=10, t=20, b=10),
-                yaxis=dict(dtick=1),
-            )
+            figura_sucursal.update_layout(legend_title_text="Prioridad")
+            figura_sucursal.update_yaxes(dtick=1)
             st.plotly_chart(
-                figura_sucursal,
-                use_container_width=True,
+                _estilo_grafico(figura_sucursal),
+                width="stretch",
                 config={"displayModeBar": False},
             )
 
     with col_grafico_2:
-        st.markdown("#### Resultado de la revisión")
-        por_estado = resumen_por_estado(analisis.resultados)
-        figura_estado = px.pie(
+        por_estado = resumen_por_estado(analisis.resultados).sort_values(
+            "cantidad",
+            ascending=True,
+        )
+        figura_estado = px.bar(
             por_estado,
-            names="estado_etiqueta",
-            values="cantidad",
-            hole=0.58,
+            x="cantidad",
+            y="estado_etiqueta",
+            orientation="h",
+            title="Resultado de la revisión",
+            text="cantidad",
             color="estado_etiqueta",
+            labels={"cantidad": "Combinaciones", "estado_etiqueta": "Resultado"},
             color_discrete_map=COLORES_ESTADO,
         )
-        figura_estado.update_traces(textposition="inside", textinfo="percent+label")
-        figura_estado.update_layout(
-            showlegend=False,
-            margin=dict(l=10, r=10, t=20, b=10),
-        )
+        figura_estado.update_traces(textposition="outside", cliponaxis=False)
+        figura_estado.update_layout(showlegend=False)
+        figura_estado.update_xaxes(dtick=10)
         st.plotly_chart(
-            figura_estado,
-            use_container_width=True,
+            _estilo_grafico(figura_estado),
+            width="stretch",
             config={"displayModeBar": False},
         )
 
-    st.markdown("#### Prioridades inmediatas")
-    tarjetas = st.columns(min(3, max(1, len(alertas))))
-    for indice, (_, fila) in enumerate(alertas.head(3).iterrows()):
-        with tarjetas[indice]:
-            _mostrar_tarjeta_alerta(fila)
+    _separador("Tres prioridades inmediatas")
+    if alertas.empty:
+        st.caption("Sin prioridades abiertas.")
+    else:
+        _bandeja_alertas(alertas.head(3))
 
 
 with pestanas[1]:
@@ -780,4 +1008,3 @@ with pestanas[4]:
     if st.button("Limpiar conversación", key="limpiar_asistente"):
         st.session_state.mensajes_asistente = []
         st.rerun()
-
