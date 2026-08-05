@@ -1,0 +1,73 @@
+:root {
+  --warm-ink: #241b17;
+  --warm-muted: #6d625c;
+  --warm-paper: #fffaf6;
+  --warm-border: #eadfd7;
+  --warm-accent: #d94b2b;
+}
+
+.stApp {
+  background: linear-gradient(180deg, #fffaf6 0%, #ffffff 30%);
+}
+
+.block-container {
+  max-width: 1500px;
+  padding-top: 2.2rem;
+  padding-bottom: 4rem;
+}
+
+.eyebrow {
+  color: var(--warm-accent);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  margin-bottom: 0.35rem;
+}
+
+h1, h2, h3, h4 {
+  color: var(--warm-ink);
+  letter-spacing: -0.02em;
+}
+
+p, label, .stCaption {
+  color: var(--warm-muted);
+}
+
+div[data-testid="stMetric"] {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--warm-border);
+  border-radius: 16px;
+  padding: 1rem 1.1rem;
+  box-shadow: 0 8px 22px rgba(64, 38, 25, 0.05);
+}
+
+div[data-testid="stMetricValue"] {
+  color: var(--warm-ink);
+}
+
+div[data-testid="stVerticalBlockBorderWrapper"] {
+  border-color: var(--warm-border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+section[data-testid="stSidebar"] {
+  background: #f7eee8;
+  border-right: 1px solid var(--warm-border);
+}
+
+.stDownloadButton button,
+.stButton button {
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+[data-baseweb="tab-list"] {
+  gap: 0.5rem;
+}
+
+[data-baseweb="tab"] {
+  border-radius: 999px;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
