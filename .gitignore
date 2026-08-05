@@ -1,0 +1,33 @@
+# Entorno virtual
+.venv/
+
+# Variables privadas y credenciales
+.env
+.streamlit/secrets.toml
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caché de pruebas y análisis
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Configuración local de editores
+.vscode/
+.idea/
+
+# Archivos temporales
+*.log
+*.tmp
+*.bak
+~$*
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+
+# Resultados generados localmente
+outputs/
