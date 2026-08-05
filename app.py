@@ -8,6 +8,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.alertas import ErrorAlertas
 from src.asistente import (
@@ -156,6 +157,132 @@ def _cargar_estilos() -> None:
         st.markdown(f"<style>{ruta.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 
 
+def _instalar_experiencia_de_marca() -> None:
+    """Instala recursos visuales globales sin intervenir en los cálculos."""
+
+    marca = _imagen_data_uri(RAIZ / "assets" / "barrio-wordmark.png")
+    cursor = _imagen_data_uri(RAIZ / "assets" / "pizza-cursor.png")
+    if marca:
+        st.markdown(
+            f"""
+            <style>
+              .stApp::before {{
+                background-image: url('{marca}');
+              }}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    if not cursor:
+        return
+
+    components.html(
+        f"""
+        <script>
+        (() => {{
+          const hostWindow = window.parent;
+          const doc = hostWindow.document;
+          const root = doc.documentElement;
+
+          if (hostWindow.__barrioDashboardCleanup) {{
+            hostWindow.__barrioDashboardCleanup();
+          }}
+
+          const cursorNode = doc.createElement('div');
+          cursorNode.id = 'bp-pizza-cursor';
+          cursorNode.setAttribute('aria-hidden', 'true');
+          cursorNode.innerHTML = '<img src="{cursor}" alt="">';
+          doc.body.appendChild(cursorNode);
+
+          const finePointer = hostWindow.matchMedia('(pointer: fine)');
+          let frame = 0;
+          let pointerX = 0;
+          let pointerY = 0;
+
+          const syncPointerMode = () => {{
+            root.classList.toggle('bp-cursor-ready', finePointer.matches);
+            if (!finePointer.matches) cursorNode.classList.remove('bp-cursor-visible');
+          }};
+          const moveCursor = (event) => {{
+            if (!finePointer.matches) return;
+            pointerX = event.clientX;
+            pointerY = event.clientY;
+            cursorNode.classList.add('bp-cursor-visible');
+            if (frame) return;
+            frame = hostWindow.requestAnimationFrame(() => {{
+              cursorNode.style.transform = `translate3d(${{pointerX - 4}}px, ${{pointerY - 4}}px, 0)`;
+              frame = 0;
+            }});
+          }};
+          const pressCursor = () => cursorNode.classList.add('bp-cursor-pressed');
+          const releaseCursor = () => cursorNode.classList.remove('bp-cursor-pressed');
+          const hideCursor = () => cursorNode.classList.remove('bp-cursor-visible');
+
+          let observedSidebar = null;
+          const sidebarResizeObserver = new hostWindow.ResizeObserver(() => syncSidebar());
+          const syncSidebar = () => {{
+            const sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+            if (sidebar !== observedSidebar) {{
+              sidebarResizeObserver.disconnect();
+              observedSidebar = sidebar;
+              if (sidebar) sidebarResizeObserver.observe(sidebar);
+            }}
+            const expanded = Boolean(
+              sidebar &&
+              (sidebar.getAttribute('aria-expanded') === 'true' || sidebar.getBoundingClientRect().width > 80)
+            );
+            root.classList.toggle('bp-sidebar-open', expanded);
+          }};
+
+          const openedPopovers = new hostWindow.WeakSet();
+          const keepPopoverHeaderVisible = () => {{
+            doc.querySelectorAll('[data-testid="stPopoverBody"]').forEach((popover) => {{
+              if (!openedPopovers.has(popover)) {{
+                openedPopovers.add(popover);
+                hostWindow.requestAnimationFrame(() => {{ popover.scrollTop = 0; }});
+              }}
+            }});
+          }};
+
+          const dashboardObserver = new hostWindow.MutationObserver(() => {{
+            syncSidebar();
+            keepPopoverHeaderVisible();
+          }});
+          dashboardObserver.observe(doc.body, {{ childList: true, subtree: true }});
+
+          doc.addEventListener('pointermove', moveCursor, {{ passive: true }});
+          doc.addEventListener('pointerdown', pressCursor, {{ passive: true }});
+          doc.addEventListener('pointerup', releaseCursor, {{ passive: true }});
+          doc.addEventListener('pointercancel', releaseCursor, {{ passive: true }});
+          doc.addEventListener('pointerleave', hideCursor, {{ passive: true }});
+          finePointer.addEventListener('change', syncPointerMode);
+
+          syncPointerMode();
+          syncSidebar();
+          keepPopoverHeaderVisible();
+
+          hostWindow.__barrioDashboardCleanup = () => {{
+            dashboardObserver.disconnect();
+            sidebarResizeObserver.disconnect();
+            doc.removeEventListener('pointermove', moveCursor);
+            doc.removeEventListener('pointerdown', pressCursor);
+            doc.removeEventListener('pointerup', releaseCursor);
+            doc.removeEventListener('pointercancel', releaseCursor);
+            doc.removeEventListener('pointerleave', hideCursor);
+            finePointer.removeEventListener('change', syncPointerMode);
+            if (frame) hostWindow.cancelAnimationFrame(frame);
+            cursorNode.remove();
+            root.classList.remove('bp-cursor-ready', 'bp-sidebar-open');
+          }};
+        }})();
+        </script>
+        """,
+        height=0,
+        scrolling=False,
+    )
+
+
 def _formatear_numero(valor: object, decimales: int = 2) -> str:
     if valor is None or pd.isna(valor):
         return "—"
@@ -211,19 +338,18 @@ def _encabezado_producto(
     fuente_datos: str,
     contexto_semana: str,
     ia_conectada: bool,
-    modelo_ia: str,
 ) -> None:
     estado_ia = (
-        f"{_texto('IA conectada', 'AI connected')} · {modelo_ia}"
+        _texto("IA conectada", "AI connected")
         if ia_conectada
         else _texto("Modo local disponible", "Local mode available")
     )
     punto_ia = "ok" if ia_conectada else "warn"
-    logo = _imagen_data_uri(RAIZ / "rsc" / "logo de barrio pizza.png")
+    logo = _imagen_data_uri(RAIZ / "assets" / "barrio-wordmark.png")
+    clase_idioma = "bp-header--en" if _en_ingles() else "bp-header--es"
     st.markdown(
         f"""
-        <header class="bp-header" role="banner">
-          <img class="bp-header-watermark" src="{logo}" alt="" aria-hidden="true">
+        <header class="bp-header {clase_idioma}" role="banner">
           <div class="bp-header-main">
             <img class="bp-header-logo" src="{logo}" alt="Barrio Pizza">
             <div>
@@ -517,6 +643,7 @@ def _crear_generador_ia(api_key: str, modelo: str):
 
 
 _cargar_estilos()
+_instalar_experiencia_de_marca()
 
 with st.container(key="bp_language_switch"):
     st.segmented_control(
@@ -710,7 +837,6 @@ _encabezado_producto(
     fuente_datos=fuente_texto,
     contexto_semana=_contexto_semana(analisis.datos["consumo_historico"]),
     ia_conectada=generador_ia is not None,
-    modelo_ia=modelo_gemini,
 )
 
 resumen = analisis.resumen
@@ -1322,7 +1448,7 @@ def _renderizar_barrio_ai_flotante() -> None:
 
     conectado = generador_ia is not None
     modo_asistente = (
-        f"{_texto('IA conectada', 'AI connected')} · {modelo_gemini}"
+        _texto("IA conectada", "AI connected")
         if conectado
         else _texto("Modo local verificado", "Verified local mode")
     )
@@ -1357,7 +1483,12 @@ def _renderizar_barrio_ai_flotante() -> None:
 
             if error_configuracion_ia:
                 with st.expander(_texto("Por qué se activó el modo local", "Why local mode is active")):
-                    st.code(error_configuracion_ia)
+                    st.write(
+                        _texto(
+                            "El servicio de IA no está disponible en este momento. Barrio AI mantiene las respuestas verificadas con el motor local.",
+                            "The AI service is unavailable right now. Barrio AI keeps answers verified through the local engine.",
+                        )
+                    )
             elif not conectado:
                 st.caption(
                     _texto(
@@ -1392,7 +1523,7 @@ def _renderizar_barrio_ai_flotante() -> None:
                 ):
                     pregunta_sugerida = sugerencia
 
-            with st.container(height=330, key="barrio_ai_history"):
+            with st.container(height=235, key="barrio_ai_history"):
                 if not st.session_state.mensajes_asistente:
                     st.markdown(
                         _texto(
@@ -1411,12 +1542,17 @@ def _renderizar_barrio_ai_flotante() -> None:
                         st.markdown(mensaje["content"])
                         if mensaje["role"] == "assistant" and mensaje.get("modo"):
                             st.caption(
-                                _texto("Gemini + cálculo verificado", "Gemini + verified calculation")
+                                _texto("IA + cálculo verificado", "AI + verified calculation")
                                 if mensaje.get("modo") == "gemini"
                                 else _texto("Cálculo local verificado", "Verified local calculation")
                             )
                         if mensaje.get("advertencia"):
-                            st.warning(mensaje["advertencia"])
+                            st.warning(
+                                _texto(
+                                    "La IA no respondió; se usó el respaldo local verificado.",
+                                    "AI did not respond; the verified local fallback was used.",
+                                )
+                            )
                         evidencia = mensaje.get("evidencia") or []
                         if mensaje["role"] == "assistant" and evidencia:
                             with st.expander(_texto("Datos usados para responder", "Data used to answer")):
