@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from html import escape
 from pathlib import Path
 
@@ -55,18 +56,98 @@ COLORES_ESTADO = {
     "Compra innecesaria": "#8A6500",
     "No evaluable": "#65655F",
 }
+COLORES_ESTADO_EN = {
+    "Correct order": "#187144",
+    "No purchase needed": "#5D765E",
+    "Underordered": "#C9251A",
+    "Overordered": "#B84C00",
+    "Missing ingredient": "#871D16",
+    "Unnecessary purchase": "#8A6500",
+    "Not evaluable": "#65655F",
+}
 COLOR_TEXTO = "#111111"
 COLOR_MUTED = "#65655F"
 COLOR_BORDE = "#DEDEDA"
 COLOR_FONDO = "#FFFFFF"
 
+PRIORIDAD_ETIQUETAS_EN = {
+    "CRITICA": "Critical",
+    "ALTA": "High",
+    "MEDIA": "Medium",
+    "SIN_ALERTA": "No alert",
+}
+ESTADO_ETIQUETAS_EN = {
+    "CORRECTO": "Correct order",
+    "SIN_COMPRA_NECESARIA": "No purchase needed",
+    "PEDIDO_INSUFICIENTE": "Underordered",
+    "SOBREPEDIDO": "Overordered",
+    "INGREDIENTE_OMITIDO": "Missing ingredient",
+    "COMPRA_INNECESARIA": "Unnecessary purchase",
+    "NO_EVALUABLE": "Not evaluable",
+}
+METODO_ETIQUETAS_EN = {
+    "promedio_simple": "Simple average",
+    "promedio_ponderado": "Weighted average",
+    "mediana": "Historical median",
+    "promedio_ponderado_robusto": "Robust weighted average",
+    "tendencia_lineal": "Linear trend",
+}
+FORMATO_INGLES = {
+    "saco": ("sack", "sacks"),
+    "bolsa": ("bag", "bags"),
+    "caja": ("box", "boxes"),
+    "lata": ("can", "cans"),
+    "balde": ("bucket", "buckets"),
+    "paquete": ("pack", "packs"),
+    "kilo": ("kilogram", "kilograms"),
+    "unidad": ("unit", "units"),
+    "pieza": ("piece", "pieces"),
+}
+
 
 st.set_page_config(
-    page_title="Inteligencia de Compras · Barrio Pizza",
+    page_title="Barrio Pizza · Inteligencia de Compras",
     page_icon="🍕",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+if "idioma_ui" not in st.session_state:
+    st.session_state.idioma_ui = "ES"
+
+
+def _en_ingles() -> bool:
+    return st.session_state.get("idioma_ui", "ES") == "EN"
+
+
+def _texto(espanol: str, ingles: str) -> str:
+    return ingles if _en_ingles() else espanol
+
+
+def _etiqueta_prioridad(codigo: object) -> str:
+    clave = str(codigo)
+    etiquetas = PRIORIDAD_ETIQUETAS_EN if _en_ingles() else PRIORIDAD_ETIQUETAS
+    return etiquetas.get(clave, clave)
+
+
+def _etiqueta_estado(codigo: object) -> str:
+    clave = str(codigo)
+    etiquetas = ESTADO_ETIQUETAS_EN if _en_ingles() else ESTADO_ETIQUETAS
+    return etiquetas.get(clave, clave)
+
+
+def _etiqueta_metodo(codigo: object) -> str:
+    clave = str(codigo)
+    etiquetas = METODO_ETIQUETAS_EN if _en_ingles() else METODO_ETIQUETAS
+    return etiquetas.get(clave, clave)
+
+
+def _imagen_data_uri(ruta: Path) -> str:
+    if not ruta.exists():
+        return ""
+    extension = ruta.suffix.lower().lstrip(".") or "png"
+    codificada = base64.b64encode(ruta.read_bytes()).decode("ascii")
+    return f"data:image/{extension};base64,{codificada}"
 
 
 def _cargar_estilos() -> None:
@@ -120,8 +201,9 @@ def _contexto_semana(consumo_historico: pd.DataFrame) -> str:
     semanas = consumo_historico.get("semana", pd.Series(dtype=str)).astype(str)
     numeros = pd.to_numeric(semanas.str.extract(r"(\d+)$")[0], errors="coerce")
     if numeros.dropna().empty:
-        return "Ciclo semanal"
-    return f"Proyección S{int(numeros.max()) + 1}"
+        return _texto("Ciclo semanal", "Weekly cycle")
+    prefijo = _texto("Proyección", "Forecast")
+    return f"{prefijo} S{int(numeros.max()) + 1}"
 
 
 def _encabezado_producto(
@@ -131,34 +213,44 @@ def _encabezado_producto(
     ia_conectada: bool,
     modelo_ia: str,
 ) -> None:
-    estado_ia = f"IA conectada · {modelo_ia}" if ia_conectada else "Modo local disponible"
+    estado_ia = (
+        f"{_texto('IA conectada', 'AI connected')} · {modelo_ia}"
+        if ia_conectada
+        else _texto("Modo local disponible", "Local mode available")
+    )
     punto_ia = "ok" if ia_conectada else "warn"
+    logo = _imagen_data_uri(RAIZ / "rsc" / "logo de barrio pizza.png")
     st.markdown(
         f"""
         <header class="bp-header" role="banner">
-          <div>
-            <div class="bp-wordmark">Barrio Pizza · Panamá</div>
-            <h1>Inteligencia de compras</h1>
-            <p>Centro de control semanal para detectar riesgos, corregir cantidades y preparar compras por proveedor.</p>
+          <img class="bp-header-watermark" src="{logo}" alt="" aria-hidden="true">
+          <div class="bp-header-main">
+            <img class="bp-header-logo" src="{logo}" alt="Barrio Pizza">
+            <div>
+              <div class="bp-wordmark">{_texto('Panamá · Desde 2015', 'Panama · Since 2015')}</div>
+              <h1>{_texto('Inteligencia', 'Purchasing')} <span>{_texto('de compras', 'intelligence')}</span></h1>
+              <p>{_texto('Centro de control semanal para detectar riesgos, corregir cantidades y preparar compras por proveedor.', 'Weekly control center to detect risks, correct quantities and prepare supplier-ready orders.')}</p>
+            </div>
           </div>
-          <div class="bp-status-grid" aria-label="Estado de la operación">
+          <div class="bp-status-grid" aria-label="{_texto('Estado de la operación', 'Operation status')}">
             <div class="bp-status-item">
-              <span class="bp-status-label">Semana</span>
+              <span class="bp-status-label">{_texto('Semana', 'Week')}</span>
               <span class="bp-status-value"><span class="bp-dot bp-dot--ok"></span><span>{_seguro(contexto_semana)}</span></span>
             </div>
             <div class="bp-status-item">
-              <span class="bp-status-label">Fuente activa</span>
+              <span class="bp-status-label">{_texto('Fuente activa', 'Active source')}</span>
               <span class="bp-status-value"><span class="bp-dot bp-dot--ok"></span><span>{_seguro(fuente_datos)}</span></span>
             </div>
             <div class="bp-status-item">
-              <span class="bp-status-label">Motor de cálculo</span>
-              <span class="bp-status-value"><span class="bp-dot bp-dot--ok"></span><span>Análisis listo</span></span>
+              <span class="bp-status-label">{_texto('Motor de cálculo', 'Calculation engine')}</span>
+              <span class="bp-status-value"><span class="bp-dot bp-dot--ok"></span><span>{_texto('Análisis listo', 'Analysis ready')}</span></span>
             </div>
             <div class="bp-status-item">
-              <span class="bp-status-label">Asistente</span>
+              <span class="bp-status-label">BARRIO AI</span>
               <span class="bp-status-value"><span class="bp-dot bp-dot--{punto_ia}"></span><span>{_seguro(estado_ia)}</span></span>
             </div>
           </div>
+          <div class="bp-header-tagline">{_texto('Del barrio y para el barrio', 'From the barrio, for the barrio')}</div>
         </header>
         """,
         unsafe_allow_html=True,
@@ -215,19 +307,138 @@ def _ajuste_alerta(fila: pd.Series) -> str:
     solicitado = limpiar_infinito(fila.get("cantidad_formatos_solicitados"))
     recomendado = limpiar_infinito(fila.get("formatos_recomendados"))
     if solicitado is None or recomendado is None:
-        return "Revisar datos"
+        return _texto("Revisar datos", "Review data")
     diferencia = int(round(recomendado - solicitado))
     if diferencia > 0:
-        return f"Agregar {diferencia}"
+        return f"{_texto('Agregar', 'Add')} {diferencia}"
     if diferencia < 0:
-        return f"Reducir {abs(diferencia)}"
-    return "Sin cambio"
+        return f"{_texto('Reducir', 'Reduce')} {abs(diferencia)}"
+    return _texto("Sin cambio", "No change")
+
+
+def _detalle_formato_ingles(
+    cantidad: int,
+    formato_compra: object,
+    cantidad_base: object,
+    unidad: object,
+) -> str:
+    singular_es = str(formato_compra or "formatos").strip().split()[0].lower()
+    singular, plural = FORMATO_INGLES.get(singular_es, ("format", "formats"))
+    nombre = singular if cantidad == 1 else plural
+    return f"{cantidad} {nombre} ({_formatear_numero(cantidad_base)} {unidad})"
+
+
+def _alerta_en_ingles(fila: pd.Series) -> tuple[str, str, str]:
+    estado = str(fila["estado"])
+    sucursal = str(fila["sucursal"])
+    ingrediente = str(fila.get("nombre", fila.get("ingrediente_id", "product")))
+    solicitado = int(fila["cantidad_formatos_solicitados"])
+    recomendado_valor = limpiar_infinito(fila.get("formatos_recomendados"))
+    recomendado = int(recomendado_valor) if recomendado_valor is not None else 0
+    formato = fila.get("formato_compra")
+    unidad = fila.get("unidad_base", "")
+
+    if estado == "NO_EVALUABLE":
+        identificador = str(fila.get("ingrediente_id", ingrediente))
+        return (
+            "Unregistered product",
+            f"{sucursal} requested {solicitado} format(s) of {identificador}, but it is not in the catalog and cannot be evaluated.",
+            "Correct the identifier or register its unit, purchasing format and supplier before approving the order.",
+        )
+    if estado == "INGREDIENTE_OMITIDO":
+        detalle = _detalle_formato_ingles(
+            recomendado,
+            formato,
+            fila.get("compra_recomendada_unidad_base"),
+            unidad,
+        )
+        return (
+            "Missing ingredient",
+            f"{sucursal} did not include {ingrediente}, but {detalle} are recommended to cover forecast consumption.",
+            f"Add {detalle} of {ingrediente} to the order.",
+        )
+    if estado == "PEDIDO_INSUFICIENTE":
+        faltantes = int(fila.get("faltante_formatos", 0) or 0)
+        detalle = _detalle_formato_ingles(
+            faltantes,
+            formato,
+            faltantes * float(fila.get("unidad_base_por_formato", 0) or 0),
+            unidad,
+        )
+        return (
+            "Underordered",
+            f"{sucursal} requested {solicitado} format(s) of {ingrediente}, but {recomendado} are recommended. The order is short by {detalle} and may run out during the forecast week.",
+            f"Increase the order by {detalle} of {ingrediente}.",
+        )
+    if estado in {"SOBREPEDIDO", "COMPRA_INNECESARIA"}:
+        excesos = int(fila.get("exceso_formatos", 0) or 0)
+        detalle = _detalle_formato_ingles(
+            excesos,
+            formato,
+            excesos * float(fila.get("unidad_base_por_formato", 0) or 0),
+            unidad,
+        )
+        riesgo = "increases expiry risk" if bool(fila.get("es_perecedero_bool")) else "ties up unnecessary inventory"
+        return (
+            "Unnecessary purchase" if estado == "COMPRA_INNECESARIA" else "Overordered",
+            f"{sucursal} requested {solicitado} format(s) of {ingrediente}, but {recomendado} are recommended. The order has {detalle} too many and {riesgo}.",
+            f"Reduce the order by {detalle} of {ingrediente}.",
+        )
+    if estado == "CORRECTO":
+        return (
+            "Correct order",
+            f"{sucursal} requested the recommended {solicitado} format(s) of {ingrediente}.",
+            "No changes are required.",
+        )
+    return (
+        "No purchase needed",
+        f"Current inventory of {ingrediente} at {sucursal} covers forecast consumption and no additional formats were requested.",
+        "No changes are required.",
+    )
+
+
+def _contenido_alerta(fila: pd.Series) -> tuple[str, str, str]:
+    if _en_ingles():
+        return _alerta_en_ingles(fila)
+    return (
+        str(fila["titulo_alerta"]),
+        str(fila["mensaje_alerta"]),
+        str(fila["accion_recomendada"]),
+    )
+
+
+def _explicacion_proyeccion(proyeccion: pd.Series) -> str:
+    if not _en_ingles():
+        return str(proyeccion["explicacion_proyeccion"])
+    metodo = str(proyeccion["metodo_proyeccion"])
+    mae = limpiar_infinito(proyeccion.get("mae_backtest"))
+    mae_texto = _formatear_numero(mae) if mae is not None else "not available"
+    if metodo == "tendencia_lineal":
+        pendiente = float(proyeccion.get("pendiente_semanal", 0) or 0)
+        direccion = "upward" if pendiente > 0 else "downward"
+        return (
+            f"Consistent {direccion} trend: slope of {pendiente:.2f} units per week, "
+            f"R²={float(proyeccion.get('r2_tendencia', 0) or 0):.3f} and backtest MAE={mae_texto}."
+        )
+    if metodo == "promedio_ponderado_robusto":
+        semanas = str(proyeccion.get("semanas_atipicas") or "none")
+        cantidad = int(proyeccion.get("cantidad_atipicos", 0) or 0)
+        return (
+            f"Robust weighted average: reduced the influence of {cantidad} outlier week(s) "
+            f"({semanas}) and weighted recent weeks more heavily. Backtest MAE={mae_texto}."
+        )
+    if metodo == "promedio_ponderado":
+        return f"Weighted average: recent weeks receive more weight. Backtest MAE={mae_texto}."
+    if metodo == "mediana":
+        return f"Historical median: represents the central level without being dominated by isolated variations. Backtest MAE={mae_texto}."
+    return f"Simple average: the most parsimonious method within the accepted error margin. Backtest MAE={mae_texto}."
 
 
 def _bandeja_alertas(filas: pd.DataFrame) -> None:
     for _, fila in filas.iterrows():
         prioridad_codigo = str(fila["prioridad"])
-        prioridad = PRIORIDAD_ETIQUETAS.get(prioridad_codigo, prioridad_codigo)
+        prioridad = _etiqueta_prioridad(prioridad_codigo)
+        _, _, accion = _contenido_alerta(fila)
         tono = {"CRITICA": "critical", "ALTA": "high", "MEDIA": "medium"}.get(
             prioridad_codigo,
             "neutral",
@@ -236,12 +447,12 @@ def _bandeja_alertas(filas: pd.DataFrame) -> None:
         recomendado = _formatear_numero(fila["formatos_recomendados"])
         st.markdown(
             f"""
-            <div class="bp-alert-row bp-alert-row--{tono}" role="group" aria-label="Alerta {_seguro(prioridad)} de {_seguro(fila['nombre'])} en {_seguro(fila['sucursal'])}">
-              <div class="bp-alert-cell"><small>Prioridad</small><span class="bp-priority bp-priority--{tono}">{_seguro(prioridad)}</span></div>
-              <div class="bp-alert-cell"><small>Sucursal</small><strong>{_seguro(fila['sucursal'])}</strong></div>
-              <div class="bp-alert-cell"><small>Ingrediente</small><strong>{_seguro(fila['nombre'])}</strong></div>
-              <div class="bp-alert-cell"><small>Solicitado → recomendado</small><strong>{_seguro(solicitado)} → {_seguro(recomendado)} · {_seguro(_ajuste_alerta(fila))}</strong></div>
-              <div class="bp-alert-action"><small>Acción</small><strong>{_seguro(fila['accion_recomendada'])}</strong></div>
+            <div class="bp-alert-row bp-alert-row--{tono}" role="group" aria-label="{_texto('Alerta', 'Alert')} {_seguro(prioridad)} {_texto('de', 'for')} {_seguro(fila['nombre'])} {_texto('en', 'at')} {_seguro(fila['sucursal'])}">
+              <div class="bp-alert-cell"><small>{_texto('Prioridad', 'Priority')}</small><span class="bp-priority bp-priority--{tono}">{_seguro(prioridad)}</span></div>
+              <div class="bp-alert-cell"><small>{_texto('Sucursal', 'Location')}</small><strong>{_seguro(fila['sucursal'])}</strong></div>
+              <div class="bp-alert-cell"><small>{_texto('Ingrediente', 'Ingredient')}</small><strong>{_seguro(fila['nombre'])}</strong></div>
+              <div class="bp-alert-cell"><small>{_texto('Solicitado → recomendado', 'Requested → recommended')}</small><strong>{_seguro(solicitado)} → {_seguro(recomendado)} · {_seguro(_ajuste_alerta(fila))}</strong></div>
+              <div class="bp-alert-action"><small>{_texto('Acción', 'Action')}</small><strong>{_seguro(accion)}</strong></div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -253,7 +464,9 @@ def _orden_para_interfaz(orden: pd.DataFrame) -> pd.DataFrame:
     tabla["ajuste_interfaz"] = (
         tabla["cantidad_formatos_recomendada"] - tabla["cantidad_formatos_original"]
     )
-    tabla["estado_interfaz"] = tabla["estado"].map(ESTADO_ETIQUETAS).fillna(tabla["estado"])
+    tabla["estado_interfaz"] = tabla["estado"].map(
+        ESTADO_ETIQUETAS_EN if _en_ingles() else ESTADO_ETIQUETAS
+    ).fillna(tabla["estado"])
     tabla = tabla[
         [
             "proveedor",
@@ -268,8 +481,21 @@ def _orden_para_interfaz(orden: pd.DataFrame) -> pd.DataFrame:
             "estado_interfaz",
         ]
     ]
-    return tabla.rename(
-        columns={
+    nombres = (
+        {
+            "proveedor": "Supplier",
+            "sucursal": "Location",
+            "nombre": "Ingredient",
+            "formato_compra": "Purchase format",
+            "cantidad_formatos_original": "Original quantity",
+            "cantidad_formatos_recomendada": "Recommended quantity",
+            "ajuste_interfaz": "Adjustment",
+            "cantidad_unidad_base_recomendada": "Recommended total",
+            "unidad_base": "Unit",
+            "estado_interfaz": "Result",
+        }
+        if _en_ingles()
+        else {
             "proveedor": "Proveedor",
             "sucursal": "Sucursal",
             "nombre": "Ingrediente",
@@ -282,6 +508,7 @@ def _orden_para_interfaz(orden: pd.DataFrame) -> pd.DataFrame:
             "estado_interfaz": "Resultado",
         }
     )
+    return tabla.rename(columns=nombres)
 
 
 @st.cache_resource(show_spinner=False)
@@ -291,56 +518,97 @@ def _crear_generador_ia(api_key: str, modelo: str):
 
 _cargar_estilos()
 
+with st.container(key="bp_language_switch"):
+    st.segmented_control(
+        "Idioma / Language",
+        options=["ES", "EN"],
+        key="idioma_ui",
+        label_visibility="collapsed",
+        help="Cambiar idioma / Switch language",
+    )
+
 try:
     datos_base = cargar_datos()
 except ErrorCargaDatos as error:
-    st.error(f"No pudimos cargar los datos base. {error}", icon="🚫")
+    st.error(
+        _texto(
+            f"No pudimos cargar los datos base. {error}",
+            f"We could not load the base data. {error}",
+        ),
+        icon="🚫",
+    )
     st.stop()
 
 
 with st.sidebar:
+    logo_sidebar = _imagen_data_uri(RAIZ / "rsc" / "logo de barrio pizza.png")
     st.markdown(
-        """
+        f"""
         <div class="bp-side-brand">
-          <strong>BARRIO PIZZA</strong>
-          <span>Control de compras</span>
+          <img src="{logo_sidebar}" alt="Barrio Pizza">
+          <div><strong>BARRIO</strong><span>{_texto('Control de compras', 'Purchasing control')}</span></div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    st.markdown("### Preparar la revisión")
-    st.caption("Elige la orden de trabajo. Cada cambio vuelve a ejecutar la auditoría completa.")
+    st.markdown(f"### {_texto('Preparar la revisión', 'Prepare the review')}")
+    st.caption(
+        _texto(
+            "Elige la orden de trabajo. Cada cambio vuelve a ejecutar la auditoría completa.",
+            "Choose the working order. Every change reruns the full audit.",
+        )
+    )
 
     fuente = st.radio(
-        "1. Fuente de la orden",
+        _texto("1. Fuente de la orden", "1. Order source"),
         options=["Orden del reto", "Cargar otro CSV"],
         index=0,
+        format_func=lambda valor: {
+            "Orden del reto": _texto("Orden del reto", "Challenge order"),
+            "Cargar otro CSV": _texto("Cargar otro CSV", "Upload another CSV"),
+        }[valor],
     )
 
     orden_activa = datos_base["orden_compra_semana"].copy()
-    fuente_texto = "Archivo original del reto"
+    fuente_texto = _texto("Archivo original del reto", "Original challenge file")
 
     if fuente == "Cargar otro CSV":
         archivo = st.file_uploader(
-            "2. Orden de compra (.csv)",
+            _texto("2. Orden de compra (.csv)", "2. Purchase order (.csv)"),
             type=["csv"],
-            help="Debe contener sucursal, ingrediente_id y cantidad_formatos.",
+            help=_texto(
+                "Debe contener sucursal, ingrediente_id y cantidad_formatos.",
+                "It must contain sucursal, ingrediente_id and cantidad_formatos.",
+            ),
         )
         if archivo is None:
-            st.info("Selecciona un CSV para iniciar la validación.")
+            st.info(_texto("Selecciona un CSV para iniciar la validación.", "Select a CSV to start validation."))
         else:
             try:
                 orden_activa = leer_orden_csv(archivo.getvalue())
                 fuente_texto = archivo.name
-                st.success("CSV recibido. La orden fue validada y recalculada.")
+                st.success(
+                    _texto(
+                        "CSV recibido. La orden fue validada y recalculada.",
+                        "CSV received. The order was validated and recalculated.",
+                    )
+                )
             except ErrorDashboard as error:
-                st.error(f"No pudimos usar este archivo. {error}")
+                st.error(
+                    _texto(
+                        f"No pudimos usar este archivo. {error}",
+                        f"We could not use this file. {error}",
+                    )
+                )
                 st.stop()
 
     permitir_edicion = st.toggle(
-        "3. Activar editor de cantidades",
+        _texto("3. Activar editor de cantidades", "3. Enable quantity editor"),
         value=False,
-        help="Completa ingredientes omitidos con cero y recalcula al editar.",
+        help=_texto(
+            "Completa ingredientes omitidos con cero y recalcula al editar.",
+            "Adds missing ingredients with zero and recalculates after edits.",
+        ),
     )
 
     if permitir_edicion:
@@ -354,7 +622,12 @@ with st.sidebar:
             st.error(str(error))
             st.stop()
 
-        st.caption("Edita Cantidad. Sucursal e ingrediente quedan protegidos.")
+        st.caption(
+            _texto(
+                "Edita Cantidad. Sucursal e ingrediente quedan protegidos.",
+                "Edit Quantity. Location and ingredient remain protected.",
+            )
+        )
         orden_activa = st.data_editor(
             orden_editor,
             hide_index=True,
@@ -363,10 +636,10 @@ with st.sidebar:
             disabled=["sucursal", "ingrediente_id"],
             num_rows="fixed",
             column_config={
-                "sucursal": st.column_config.TextColumn("Sucursal"),
-                "ingrediente_id": st.column_config.TextColumn("Ingrediente"),
+                "sucursal": st.column_config.TextColumn(_texto("Sucursal", "Location")),
+                "ingrediente_id": st.column_config.TextColumn(_texto("Ingrediente", "Ingredient")),
                 "cantidad_formatos": st.column_config.NumberColumn(
-                    "Cantidad",
+                    _texto("Cantidad", "Quantity"),
                     min_value=0,
                     step=1,
                     format="%d",
@@ -374,24 +647,24 @@ with st.sidebar:
             },
             key="editor_orden",
         )
-        fuente_texto += " · edición activa"
+        fuente_texto += _texto(" · edición activa", " · editing active")
 
     st.divider()
     st.markdown(
-        """
+        f"""
         <div class="bp-inline-status">
           <span class="bp-dot bp-dot--ok"></span>
-          Recálculo automático activo
+          {_texto('Recálculo automático activo', 'Automatic recalculation active')}
         </div>
         """,
         unsafe_allow_html=True,
     )
-    st.caption("Flujo: cargar → auditar → corregir → descargar")
+    st.caption(_texto("Flujo: cargar → auditar → corregir → descargar", "Flow: upload → audit → correct → download"))
     st.markdown(
-        """
-        <div class="bp-side-step"><b>1</b><span>Revisa las prioridades del resumen.</span></div>
-        <div class="bp-side-step"><b>2</b><span>Abre el expediente de cada alerta.</span></div>
-        <div class="bp-side-step"><b>3</b><span>Descarga la orden lista por proveedor.</span></div>
+        f"""
+        <div class="bp-side-step"><b>1</b><span>{_texto('Revisa las prioridades del resumen.', 'Review the priorities in the summary.')}</span></div>
+        <div class="bp-side-step"><b>2</b><span>{_texto('Abre el expediente de cada alerta.', 'Open the case file for each alert.')}</span></div>
+        <div class="bp-side-step"><b>3</b><span>{_texto('Descarga la orden lista por proveedor.', 'Download the supplier-ready order.')}</span></div>
         """,
         unsafe_allow_html=True,
     )
@@ -406,10 +679,14 @@ except (
     ErrorAlertas,
 ) as error:
     st.error(
-        "La revisión se detuvo porque los datos contienen un error bloqueante. "
-        "Corrige el archivo indicado y vuelve a cargarlo."
+        _texto(
+            "La revisión se detuvo porque los datos contienen un error bloqueante. "
+            "Corrige el archivo indicado y vuelve a cargarlo.",
+            "The review stopped because the data contains a blocking error. "
+            "Correct the indicated file and upload it again.",
+        )
     )
-    with st.expander("Ver detalle técnico del error"):
+    with st.expander(_texto("Ver detalle técnico del error", "View technical error details")):
         st.code(str(error))
     st.stop()
 
@@ -441,20 +718,22 @@ porcentaje_correcto = porcentaje_orden_correcta(resumen)
 
 pestanas = st.tabs(
     [
-        "Resumen ejecutivo",
-        "Centro de alertas",
-        "Orden corregida",
-        "Calidad y modelo",
-        "Asistente IA",
+        _texto("Resumen ejecutivo", "Executive summary"),
+        _texto("Centro de alertas", "Alert center"),
+        _texto("Orden corregida", "Corrected order"),
+        _texto("Calidad y modelo", "Quality and model"),
     ]
 )
 
 
 with pestanas[0]:
     _titulo_seccion(
-        "01 · Decidir",
-        "Resumen ejecutivo",
-        "Lo importante de la revisión semanal, ordenado por riesgo y listo para actuar.",
+        _texto("01 · Decidir", "01 · Decide"),
+        _texto("Resumen ejecutivo", "Executive summary"),
+        _texto(
+            "Lo importante de la revisión semanal, ordenado por riesgo y listo para actuar.",
+            "The weekly review essentials, ranked by risk and ready for action.",
+        ),
     )
 
     alertas = filtrar_resultados(analisis.resultados, solo_alertas=True)
@@ -462,54 +741,62 @@ with pestanas[0]:
     excesos = resumen["sobrepedidos"] + resumen["compras_innecesarias"]
     columnas_metricas = st.columns(3)
     with columnas_metricas[0]:
-        _tarjeta_metrica("Alertas totales", resumen["alertas_total"], "Casos que requieren decisión", "brand")
+        _tarjeta_metrica(_texto("Alertas totales", "Total alerts"), resumen["alertas_total"], _texto("Casos que requieren decisión", "Cases requiring a decision"), "brand")
     with columnas_metricas[1]:
-        _tarjeta_metrica("Críticas", resumen["prioridad_critica"], "Resolver antes de aprobar", "critical")
+        _tarjeta_metrica(_texto("Críticas", "Critical"), resumen["prioridad_critica"], _texto("Resolver antes de aprobar", "Resolve before approval"), "critical")
     with columnas_metricas[2]:
-        _tarjeta_metrica("Riesgo de quiebre", faltantes, "Insuficientes u omitidos", "high")
+        _tarjeta_metrica(_texto("Riesgo de quiebre", "Stockout risk"), faltantes, _texto("Insuficientes u omitidos", "Underordered or missing"), "high")
     columnas_metricas_secundarias = st.columns(2)
     with columnas_metricas_secundarias[0]:
-        _tarjeta_metrica("Sobrepedidos", excesos, "Capital o inventario de más", "medium")
+        _tarjeta_metrica(_texto("Sobrepedidos", "Overorders"), excesos, _texto("Capital o inventario de más", "Excess capital or inventory"), "medium")
     with columnas_metricas_secundarias[1]:
-        _tarjeta_metrica("Orden correcta", f"{porcentaje_correcto:.1f}%", "Combinaciones sin ajuste", "good")
+        _tarjeta_metrica(_texto("Orden correcta", "Correct order"), f"{porcentaje_correcto:.1f}%", _texto("Combinaciones sin ajuste", "Combinations needing no adjustment"), "good")
 
     if alertas.empty:
-        st.success("Revisión completa: la orden no requiere correcciones.")
+        st.success(_texto("Revisión completa: la orden no requiere correcciones.", "Review complete: the order needs no corrections."))
     else:
         primera = alertas.iloc[0]
+        _, _, primera_accion = _contenido_alerta(primera)
         st.markdown(
             f"""
             <div class="bp-action" role="status">
               <div class="bp-action-index">01</div>
               <div>
-                <div class="bp-action-label">Primera acción recomendada · {_seguro(primera['sucursal'])} · {_seguro(primera['nombre'])}</div>
-                <div class="bp-action-copy">{_seguro(primera['accion_recomendada'])}</div>
+                <div class="bp-action-label">{_texto('Primera acción recomendada', 'First recommended action')} · {_seguro(primera['sucursal'])} · {_seguro(primera['nombre'])}</div>
+                <div class="bp-action-copy">{_seguro(primera_accion)}</div>
               </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-    _separador("Mapa operativo")
+    _separador(_texto("Mapa operativo", "Operating map"))
     col_grafico_1, col_grafico_2 = st.columns([1.15, 1])
 
     with col_grafico_1:
         por_sucursal = resumen_por_sucursal(analisis.resultados)
         if por_sucursal.empty:
-            st.info("No existen alertas para graficar.")
+            st.info(_texto("No existen alertas para graficar.", "There are no alerts to chart."))
         else:
+            por_sucursal["prioridad_ui"] = por_sucursal["prioridad"].map(
+                PRIORIDAD_ETIQUETAS_EN if _en_ingles() else PRIORIDAD_ETIQUETAS
+            )
+            colores_prioridad_ui = {
+                _etiqueta_prioridad(codigo): color
+                for codigo, color in COLORES_PRIORIDAD.items()
+            }
             figura_sucursal = px.bar(
                 por_sucursal,
                 x="sucursal",
                 y="cantidad",
-                color="prioridad",
+                color="prioridad_ui",
                 barmode="stack",
-                title="Alertas por sucursal",
-                labels={"sucursal": "Sucursal", "cantidad": "Alertas", "prioridad": "Prioridad"},
-                color_discrete_map=COLORES_PRIORIDAD,
-                category_orders={"prioridad": ["CRITICA", "ALTA", "MEDIA"]},
+                title=_texto("Alertas por sucursal", "Alerts by location"),
+                labels={"sucursal": _texto("Sucursal", "Location"), "cantidad": _texto("Alertas", "Alerts"), "prioridad_ui": _texto("Prioridad", "Priority")},
+                color_discrete_map=colores_prioridad_ui,
+                category_orders={"prioridad_ui": [_etiqueta_prioridad(codigo) for codigo in ["CRITICA", "ALTA", "MEDIA"]]},
             )
-            figura_sucursal.update_layout(legend_title_text="Prioridad")
+            figura_sucursal.update_layout(legend_title_text=_texto("Prioridad", "Priority"))
             figura_sucursal.update_yaxes(dtick=1)
             st.plotly_chart(
                 _estilo_grafico(figura_sucursal),
@@ -522,16 +809,19 @@ with pestanas[0]:
             "cantidad",
             ascending=True,
         )
+        por_estado["estado_etiqueta"] = por_estado["estado"].map(
+            ESTADO_ETIQUETAS_EN if _en_ingles() else ESTADO_ETIQUETAS
+        )
         figura_estado = px.bar(
             por_estado,
             x="cantidad",
             y="estado_etiqueta",
             orientation="h",
-            title="Resultado de la revisión",
+            title=_texto("Resultado de la revisión", "Review result"),
             text="cantidad",
             color="estado_etiqueta",
-            labels={"cantidad": "Combinaciones", "estado_etiqueta": "Resultado"},
-            color_discrete_map=COLORES_ESTADO,
+            labels={"cantidad": _texto("Combinaciones", "Combinations"), "estado_etiqueta": _texto("Resultado", "Result")},
+            color_discrete_map=COLORES_ESTADO_EN if _en_ingles() else COLORES_ESTADO,
         )
         figura_estado.update_traces(textposition="outside", cliponaxis=False)
         figura_estado.update_layout(showlegend=False)
@@ -542,18 +832,21 @@ with pestanas[0]:
             config={"displayModeBar": False},
         )
 
-    _separador("Tres prioridades inmediatas")
+    _separador(_texto("Tres prioridades inmediatas", "Three immediate priorities"))
     if alertas.empty:
-        st.caption("Sin prioridades abiertas.")
+        st.caption(_texto("Sin prioridades abiertas.", "No open priorities."))
     else:
         _bandeja_alertas(alertas.head(3))
 
 
 with pestanas[1]:
     _titulo_seccion(
-        "02 · Investigar",
-        "Centro de alertas",
-        "Una bandeja de decisiones: filtra, compara la cantidad pedida y abre el expediente auditable de cada caso.",
+        _texto("02 · Investigar", "02 · Investigate"),
+        _texto("Centro de alertas", "Alert center"),
+        _texto(
+            "Una bandeja de decisiones: filtra, compara la cantidad pedida y abre el expediente auditable de cada caso.",
+            "A decision inbox: filter, compare requested quantities and open the auditable case file for each alert.",
+        ),
     )
 
     sucursales_disponibles = sorted(analisis.resultados["sucursal"].dropna().unique())
@@ -569,24 +862,24 @@ with pestanas[1]:
     ]
 
     with st.container(border=True):
-        st.markdown("#### Filtrar bandeja")
+        st.markdown(f"#### {_texto('Filtrar bandeja', 'Filter inbox')}")
         filtros = st.columns(3)
         filtro_sucursales = filtros[0].multiselect(
-            "Sucursal",
+            _texto("Sucursal", "Location"),
             sucursales_disponibles,
-            placeholder="Todas las sucursales",
+            placeholder=_texto("Todas las sucursales", "All locations"),
         )
         filtro_prioridades = filtros[1].multiselect(
-            "Prioridad",
+            _texto("Prioridad", "Priority"),
             prioridades_disponibles,
-            format_func=lambda valor: PRIORIDAD_ETIQUETAS.get(valor, valor),
-            placeholder="Todas las prioridades",
+            format_func=_etiqueta_prioridad,
+            placeholder=_texto("Todas las prioridades", "All priorities"),
         )
         filtro_estados = filtros[2].multiselect(
-            "Tipo de problema",
+            _texto("Tipo de problema", "Issue type"),
             estados_disponibles,
-            format_func=lambda valor: ESTADO_ETIQUETAS.get(valor, valor),
-            placeholder="Todos los tipos",
+            format_func=_etiqueta_estado,
+            placeholder=_texto("Todos los tipos", "All issue types"),
         )
 
     filtradas = filtrar_resultados(
@@ -598,25 +891,33 @@ with pestanas[1]:
     )
 
     st.markdown(
-        f'<div class="bp-inline-status"><span class="bp-dot bp-dot--warn"></span>{len(filtradas)} alertas visibles</div>',
+        f'<div class="bp-inline-status"><span class="bp-dot bp-dot--warn"></span>{len(filtradas)} {_texto("alertas visibles", "visible alerts")}</div>',
         unsafe_allow_html=True,
     )
     if filtradas.empty:
-        st.info("No hay alertas con esta combinación de filtros. Ajusta la búsqueda para continuar.")
+        st.info(
+            _texto(
+                "No hay alertas con esta combinación de filtros. Ajusta la búsqueda para continuar.",
+                "There are no alerts for this filter combination. Adjust the search to continue.",
+            )
+        )
     else:
         _bandeja_alertas(filtradas)
 
         opciones = {
-            f"{PRIORIDAD_ETIQUETAS.get(str(fila['prioridad']), fila['prioridad'])} · {fila['sucursal']} · {fila['nombre']} — {fila['titulo_alerta']}": (
+            f"{_etiqueta_prioridad(fila['prioridad'])} · {fila['sucursal']} · {fila['nombre']} — {_contenido_alerta(fila)[0]}": (
                 str(fila["sucursal"]),
                 str(fila["ingrediente_id"]),
             )
             for _, fila in filtradas.iterrows()
         }
         seleccion = st.selectbox(
-            "Abrir expediente de alerta",
+            _texto("Abrir expediente de alerta", "Open alert case file"),
             options=list(opciones),
-            help="Muestra el impacto, la acción, el histórico y el cálculo de la alerta seleccionada.",
+            help=_texto(
+                "Muestra el impacto, la acción, el histórico y el cálculo de la alerta seleccionada.",
+                "Shows the impact, action, history and calculation for the selected alert.",
+            ),
         )
         sucursal, ingrediente_id = opciones[seleccion]
         caso = obtener_caso(
@@ -625,9 +926,10 @@ with pestanas[1]:
             ingrediente_id=ingrediente_id,
         )
 
-        _separador("Expediente operativo")
-        prioridad_caso = PRIORIDAD_ETIQUETAS.get(str(caso["prioridad"]), caso["prioridad"])
-        estado_caso = ESTADO_ETIQUETAS.get(str(caso["estado"]), caso["estado"])
+        _separador(_texto("Expediente operativo", "Operational case file"))
+        prioridad_caso = _etiqueta_prioridad(caso["prioridad"])
+        estado_caso = _etiqueta_estado(caso["estado"])
+        titulo_caso, mensaje_caso, accion_caso = _contenido_alerta(caso)
         tono_caso = {"CRITICA": "critical", "ALTA": "high", "MEDIA": "medium"}.get(
             str(caso["prioridad"]),
             "neutral",
@@ -637,9 +939,9 @@ with pestanas[1]:
             <div class="bp-case-banner">
               <span class="bp-priority bp-priority--{tono_caso}">{_seguro(prioridad_caso)}</span>
               <div class="bp-case-title" role="heading" aria-level="3">{_seguro(caso['nombre'])} · {_seguro(caso['sucursal'])}</div>
-              <strong>{_seguro(estado_caso)} — {_seguro(caso['titulo_alerta'])}</strong>
-              <p>{_seguro(caso['mensaje_alerta'])}</p>
-              <div class="bp-case-action">Acción recomendada: {_seguro(caso['accion_recomendada'])}</div>
+              <strong>{_seguro(estado_caso)} — {_seguro(titulo_caso)}</strong>
+              <p>{_seguro(mensaje_caso)}</p>
+              <div class="bp-case-action">{_texto('Acción recomendada', 'Recommended action')}: {_seguro(accion_caso)}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -648,16 +950,16 @@ with pestanas[1]:
         metricas_caso = st.columns(3)
         unidad = str(caso.get("unidad_base", ""))
         with metricas_caso[0]:
-            _tarjeta_metrica("Consumo proyectado", _formatear_numero(caso["consumo_proyectado_unidad_base"]), unidad)
+            _tarjeta_metrica(_texto("Consumo proyectado", "Forecast consumption"), _formatear_numero(caso["consumo_proyectado_unidad_base"]), unidad)
         with metricas_caso[1]:
-            _tarjeta_metrica("Inventario actual", _formatear_numero(caso["stock_actual_unidad_base"]), unidad)
+            _tarjeta_metrica(_texto("Inventario actual", "Current inventory"), _formatear_numero(caso["stock_actual_unidad_base"]), unidad)
         with metricas_caso[2]:
-            _tarjeta_metrica("Solicitado", _formatear_numero(caso["cantidad_formatos_solicitados"]), "formatos")
+            _tarjeta_metrica(_texto("Solicitado", "Requested"), _formatear_numero(caso["cantidad_formatos_solicitados"]), _texto("formatos", "formats"))
         metricas_caso_secundarias = st.columns(2)
         with metricas_caso_secundarias[0]:
-            _tarjeta_metrica("Recomendado", _formatear_numero(caso["formatos_recomendados"]), str(caso.get("formato_compra", "formatos")), "brand")
+            _tarjeta_metrica(_texto("Recomendado", "Recommended"), _formatear_numero(caso["formatos_recomendados"]), str(caso.get("formato_compra", _texto("formatos", "formats"))), "brand")
         with metricas_caso_secundarias[1]:
-            _tarjeta_metrica("Cobertura", _formatear_porcentaje(caso["cobertura_proyectada_pct"]), "consumo proyectado")
+            _tarjeta_metrica(_texto("Cobertura", "Coverage"), _formatear_porcentaje(caso["cobertura_proyectada_pct"]), _texto("consumo proyectado", "forecast consumption"))
 
         proyeccion = proyeccion_del_caso(
             analisis.proyecciones,
@@ -667,11 +969,15 @@ with pestanas[1]:
 
         if proyeccion is None:
             st.error(
-                "No se puede proyectar este producto porque no existe en el catálogo. "
-                "Corrige el identificador o registra el ingrediente antes de aprobar la compra."
+                _texto(
+                    "No se puede proyectar este producto porque no existe en el catálogo. "
+                    "Corrige el identificador o registra el ingrediente antes de aprobar la compra.",
+                    "This product cannot be forecast because it is not in the catalog. "
+                    "Correct the identifier or register the ingredient before approving the purchase.",
+                )
             )
         else:
-            _separador("Consumo y proyección")
+            _separador(_texto("Consumo y proyección", "Consumption and forecast"))
             serie = preparar_serie_detalle(
                 analisis.datos["consumo_historico"],
                 analisis.proyecciones,
@@ -685,7 +991,7 @@ with pestanas[1]:
                     x=historico["semana"],
                     y=historico["consumo_unidad_base"],
                     mode="lines+markers",
-                    name="Consumo histórico",
+                    name=_texto("Consumo histórico", "Historical consumption"),
                     line=dict(color="#111111", width=3),
                     marker=dict(color="#111111", size=7),
                 )
@@ -698,7 +1004,7 @@ with pestanas[1]:
                         y=atipicos["consumo_unidad_base"],
                         mode="markers",
                         marker=dict(size=14, symbol="x", color="#B84C00", line=dict(width=2)),
-                        name="Semana atípica",
+                        name=_texto("Semana atípica", "Outlier week"),
                     )
                 )
             proyectado = serie.loc[serie["tipo"] == "Proyección"]
@@ -710,12 +1016,12 @@ with pestanas[1]:
                     mode="lines+markers",
                     line=dict(color="#C9251A", width=3, dash="dot"),
                     marker=dict(size=[0, 15], symbol="diamond", color="#C9251A"),
-                    name="Próxima semana",
+                    name=_texto("Próxima semana", "Next week"),
                 )
             )
             figura_detalle.update_layout(
-                title="Consumo histórico y próxima semana",
-                xaxis_title="Semana",
+                title=_texto("Consumo histórico y próxima semana", "Historical consumption and next week"),
+                xaxis_title=_texto("Semana", "Week"),
                 yaxis_title=str(caso["unidad_base"]),
                 hovermode="x unified",
             )
@@ -725,56 +1031,56 @@ with pestanas[1]:
                 config={"displayModeBar": False},
             )
 
-            with st.expander("Cómo se calculó la proyección", expanded=True):
-                st.write(str(proyeccion["explicacion_proyeccion"]))
+            with st.expander(_texto("Cómo se calculó la proyección", "How the forecast was calculated"), expanded=True):
+                st.write(_explicacion_proyeccion(proyeccion))
                 columnas_modelo = st.columns(4)
                 with columnas_modelo[0]:
                     _tarjeta_metrica(
-                        "Método",
-                        METODO_ETIQUETAS.get(
-                        str(proyeccion["metodo_proyeccion"]),
-                        str(proyeccion["metodo_proyeccion"]),
-                        ),
-                        "modelo seleccionado",
+                        _texto("Método", "Method"),
+                        _etiqueta_metodo(proyeccion["metodo_proyeccion"]),
+                        _texto("modelo seleccionado", "selected model"),
                         "brand",
                         compacto=True,
                     )
                 with columnas_modelo[1]:
-                    _tarjeta_metrica("MAE retrospectivo", _formatear_numero(proyeccion["mae_backtest"]), "error absoluto")
+                    _tarjeta_metrica(_texto("MAE retrospectivo", "Backtest MAE"), _formatear_numero(proyeccion["mae_backtest"]), _texto("error absoluto", "absolute error"))
                 with columnas_modelo[2]:
-                    _tarjeta_metrica("WAPE retrospectivo", _formatear_porcentaje(proyeccion["wape_backtest_pct"]), "error porcentual")
+                    _tarjeta_metrica(_texto("WAPE retrospectivo", "Backtest WAPE"), _formatear_porcentaje(proyeccion["wape_backtest_pct"]), _texto("error porcentual", "percentage error"))
                 with columnas_modelo[3]:
-                    _tarjeta_metrica("Semanas atípicas", str(proyeccion["semanas_atipicas"] or "Ninguna"), "detectadas en la serie")
+                    _tarjeta_metrica(_texto("Semanas atípicas", "Outlier weeks"), str(proyeccion["semanas_atipicas"] or _texto("Ninguna", "None")), _texto("detectadas en la serie", "detected in the series"))
 
-            with st.expander("Ver cálculo de compra auditable"):
+            with st.expander(_texto("Ver cálculo de compra auditable", "View auditable purchase calculation")):
                 tabla_calculo = pd.DataFrame(
                     [
-                        ("1. Consumo proyectado", f"{_formatear_numero(caso['consumo_proyectado_unidad_base'])} {caso['unidad_base']}"),
-                        ("2. Inventario disponible", f"{_formatear_numero(caso['stock_actual_unidad_base'])} {caso['unidad_base']}"),
-                        ("3. Necesidad neta", f"{_formatear_numero(caso['necesidad_neta_unidad_base'])} {caso['unidad_base']}"),
-                        ("4. Presentación de compra", str(caso["formato_compra"])),
-                        ("5. Cantidad recomendada", f"{_formatear_numero(caso['formatos_recomendados'])} formatos"),
-                        ("6. Cantidad solicitada", f"{_formatear_numero(caso['cantidad_formatos_solicitados'])} formatos"),
+                        (_texto("1. Consumo proyectado", "1. Forecast consumption"), f"{_formatear_numero(caso['consumo_proyectado_unidad_base'])} {caso['unidad_base']}"),
+                        (_texto("2. Inventario disponible", "2. Available inventory"), f"{_formatear_numero(caso['stock_actual_unidad_base'])} {caso['unidad_base']}"),
+                        (_texto("3. Necesidad neta", "3. Net requirement"), f"{_formatear_numero(caso['necesidad_neta_unidad_base'])} {caso['unidad_base']}"),
+                        (_texto("4. Presentación de compra", "4. Purchase format"), str(caso["formato_compra"])),
+                        (_texto("5. Cantidad recomendada", "5. Recommended quantity"), f"{_formatear_numero(caso['formatos_recomendados'])} {_texto('formatos', 'formats')}"),
+                        (_texto("6. Cantidad solicitada", "6. Requested quantity"), f"{_formatear_numero(caso['cantidad_formatos_solicitados'])} {_texto('formatos', 'formats')}"),
                     ],
-                    columns=["Paso", "Valor usado"],
+                    columns=[_texto("Paso", "Step"), _texto("Valor usado", "Value used")],
                 )
                 st.table(tabla_calculo)
 
 
 with pestanas[2]:
     _titulo_seccion(
-        "03 · Resolver",
-        "Orden corregida por proveedor",
-        "Revisa el ajuste final, filtra por proveedor y descarga archivos listos para enviar. La recomendación excluye productos desconocidos y conserva formatos completos.",
+        _texto("03 · Resolver", "03 · Resolve"),
+        _texto("Orden corregida por proveedor", "Corrected order by supplier"),
+        _texto(
+            "Revisa el ajuste final, filtra por proveedor y descarga archivos listos para enviar. La recomendación excluye productos desconocidos y conserva formatos completos.",
+            "Review the final adjustment, filter by supplier and download files ready to send. The recommendation excludes unknown products and preserves full purchase formats.",
+        ),
     )
 
     proveedores = sorted(analisis.orden_corregida["proveedor"].dropna().unique())
     with st.container(border=True):
         filtro_proveedores = st.multiselect(
-            "Filtrar proveedores",
+            _texto("Filtrar proveedores", "Filter suppliers"),
             proveedores,
-            placeholder="Todos los proveedores",
-            help="La descarga filtrada respeta esta selección.",
+            placeholder=_texto("Todos los proveedores", "All suppliers"),
+            help=_texto("La descarga filtrada respeta esta selección.", "The filtered download follows this selection."),
         )
     orden_filtrada = preparar_orden_por_proveedor(
         analisis.orden_corregida,
@@ -783,33 +1089,37 @@ with pestanas[2]:
 
     indicadores_orden = st.columns(3)
     with indicadores_orden[0]:
-        _tarjeta_metrica("Proveedores", orden_filtrada["proveedor"].nunique(), "incluidos en la vista")
+        _tarjeta_metrica(_texto("Proveedores", "Suppliers"), orden_filtrada["proveedor"].nunique(), _texto("incluidos en la vista", "included in the view"))
     with indicadores_orden[1]:
-        _tarjeta_metrica("Líneas de compra", len(orden_filtrada), "ingredientes por sucursal", "brand")
+        _tarjeta_metrica(_texto("Líneas de compra", "Purchase lines"), len(orden_filtrada), _texto("ingredientes por sucursal", "ingredients by location"), "brand")
     with indicadores_orden[2]:
-        _tarjeta_metrica("Sucursales", orden_filtrada["sucursal"].nunique(), "cubiertas por la orden")
+        _tarjeta_metrica(_texto("Sucursales", "Locations"), orden_filtrada["sucursal"].nunique(), _texto("cubiertas por la orden", "covered by the order"))
 
-    _separador("Vista consolidada")
+    _separador(_texto("Vista consolidada", "Consolidated view"))
+    columna_original = _texto("Cantidad original", "Original quantity")
+    columna_recomendada = _texto("Cantidad recomendada", "Recommended quantity")
+    columna_ajuste = _texto("Ajuste", "Adjustment")
+    columna_total = _texto("Total recomendado", "Recommended total")
     st.dataframe(
         _orden_para_interfaz(orden_filtrada),
         hide_index=True,
         width="stretch",
         height=480,
         column_config={
-            "Cantidad original": st.column_config.NumberColumn(format="%d"),
-            "Cantidad recomendada": st.column_config.NumberColumn(format="%d"),
-            "Ajuste": st.column_config.NumberColumn(
-                help="Positivo: agregar. Negativo: reducir.",
+            columna_original: st.column_config.NumberColumn(format="%d"),
+            columna_recomendada: st.column_config.NumberColumn(format="%d"),
+            columna_ajuste: st.column_config.NumberColumn(
+                help=_texto("Positivo: agregar. Negativo: reducir.", "Positive: add. Negative: reduce."),
                 format="%+d",
             ),
-            "Total recomendado": st.column_config.NumberColumn(format="%.2f"),
+            columna_total: st.column_config.NumberColumn(format="%.2f"),
         },
     )
-    st.caption("Ajuste positivo = agregar formatos · Ajuste negativo = reducir formatos.")
+    st.caption(_texto("Ajuste positivo = agregar formatos · Ajuste negativo = reducir formatos.", "Positive adjustment = add formats · Negative adjustment = reduce formats."))
 
     descargas = st.columns(2)
     descarga_completa = descargas[0].download_button(
-        "Descargar orden completa · CSV",
+        _texto("Descargar orden completa · CSV", "Download full order · CSV"),
         data=dataframe_a_csv_bytes(analisis.orden_corregida),
         file_name="orden_corregida_barrio_pizza.csv",
         mime="text/csv",
@@ -817,80 +1127,84 @@ with pestanas[2]:
         type="primary",
     )
     descarga_filtrada = descargas[1].download_button(
-        "Descargar vista filtrada · CSV",
+        _texto("Descargar vista filtrada · CSV", "Download filtered view · CSV"),
         data=dataframe_a_csv_bytes(orden_filtrada),
         file_name="orden_corregida_filtrada.csv",
         mime="text/csv",
         width="stretch",
     )
     if descarga_completa or descarga_filtrada:
-        st.toast("Descarga preparada correctamente.")
+        st.toast(_texto("Descarga preparada correctamente.", "Download prepared successfully."))
 
-    _separador("Órdenes separadas, listas para enviar")
+    _separador(_texto("Órdenes separadas, listas para enviar", "Separate orders, ready to send"))
     for proveedor, grupo in orden_filtrada.groupby("proveedor", sort=True):
-        with st.expander(f"{proveedor} · {len(grupo)} líneas de compra"):
+        with st.expander(f"{proveedor} · {len(grupo)} {_texto('líneas de compra', 'purchase lines')}"):
             st.dataframe(
-                _orden_para_interfaz(grupo).drop(columns="Proveedor"),
+                _orden_para_interfaz(grupo).drop(columns=_texto("Proveedor", "Supplier")),
                 hide_index=True,
                 width="stretch",
             )
             descarga_proveedor = st.download_button(
-                f"Descargar CSV · {proveedor}",
+                f"{_texto('Descargar CSV', 'Download CSV')} · {proveedor}",
                 data=dataframe_a_csv_bytes(grupo),
                 file_name=f"orden_{str(proveedor).lower().replace(' ', '_')}.csv",
                 mime="text/csv",
                 key=f"descarga_{proveedor}",
             )
             if descarga_proveedor:
-                st.toast(f"Orden de {proveedor} preparada.")
+                st.toast(_texto(f"Orden de {proveedor} preparada.", f"{proveedor} order prepared."))
 
 
 with pestanas[3]:
     _titulo_seccion(
-        "04 · Verificar",
-        "Calidad y trazabilidad",
-        "Distingue problemas de archivo, desempeño del modelo y evidencia de cada proyección.",
+        _texto("04 · Verificar", "04 · Verify"),
+        _texto("Calidad y trazabilidad", "Quality and traceability"),
+        _texto(
+            "Distingue problemas de archivo, desempeño del modelo y evidencia de cada proyección.",
+            "Separate file issues, model performance and the evidence behind every forecast.",
+        ),
     )
 
     hallazgos = analisis.hallazgos.copy()
-    _separador("Calidad de datos")
-    st.caption("Los errores bloqueantes detienen el cálculo; las advertencias permiten continuar, pero requieren revisión.")
+    _separador(_texto("Calidad de datos", "Data quality"))
+    st.caption(_texto("Los errores bloqueantes detienen el cálculo; las advertencias permiten continuar, pero requieren revisión.", "Blocking errors stop the calculation; warnings allow it to continue but still require review."))
     columnas_calidad = st.columns(3)
     cantidad_errores = int((hallazgos["nivel"] == "ERROR").sum()) if not hallazgos.empty else 0
     cantidad_bloqueantes = int(hallazgos["bloqueante"].fillna(False).sum()) if not hallazgos.empty else 0
     with columnas_calidad[0]:
-        _tarjeta_metrica("Hallazgos", len(hallazgos), "advertencias y errores")
+        _tarjeta_metrica(_texto("Hallazgos", "Findings"), len(hallazgos), _texto("advertencias y errores", "warnings and errors"))
     with columnas_calidad[1]:
-        _tarjeta_metrica("Errores", cantidad_errores, "requieren corrección", "high" if cantidad_errores else "good")
+        _tarjeta_metrica(_texto("Errores", "Errors"), cantidad_errores, _texto("requieren corrección", "require correction"), "high" if cantidad_errores else "good")
     with columnas_calidad[2]:
-        _tarjeta_metrica("Bloqueantes", cantidad_bloqueantes, "detienen el análisis", "critical" if cantidad_bloqueantes else "good")
+        _tarjeta_metrica(_texto("Bloqueantes", "Blocking"), cantidad_bloqueantes, _texto("detienen el análisis", "stop the analysis"), "critical" if cantidad_bloqueantes else "good")
 
     if hallazgos.empty:
-        st.success("No se encontraron problemas de calidad de datos.")
+        st.success(_texto("No se encontraron problemas de calidad de datos.", "No data-quality issues were found."))
     else:
         tabla_calidad = hallazgos.copy()
-        tabla_calidad["bloqueante"] = tabla_calidad["bloqueante"].fillna(False).map({True: "Sí", False: "No"})
-        tabla_calidad = tabla_calidad.rename(
-            columns={
-                "codigo": "Código",
-                "nivel": "Severidad",
-                "archivo": "Fuente",
-                "mensaje": "Hallazgo",
-                "sucursal": "Sucursal",
-                "ingrediente_id": "Ingrediente",
-                "campo": "Campo",
-                "valor": "Valor recibido",
-                "bloqueante": "¿Bloquea el análisis?",
-            }
+        tabla_calidad["bloqueante"] = tabla_calidad["bloqueante"].fillna(False).map(
+            {True: _texto("Sí", "Yes"), False: _texto("No", "No")}
         )
+        nombres_calidad = {
+            "codigo": _texto("Código", "Code"),
+            "nivel": _texto("Severidad", "Severity"),
+            "archivo": _texto("Fuente", "Source"),
+            "mensaje": _texto("Hallazgo", "Finding"),
+            "sucursal": _texto("Sucursal", "Location"),
+            "ingrediente_id": _texto("Ingrediente", "Ingredient"),
+            "campo": _texto("Campo", "Field"),
+            "valor": _texto("Valor recibido", "Received value"),
+            "bloqueante": _texto("¿Bloquea el análisis?", "Blocks analysis?"),
+        }
+        tabla_calidad = tabla_calidad.rename(columns=nombres_calidad)
         tabla_calidad = tabla_calidad[
             [
-                "Severidad",
-                "Hallazgo",
-                "Fuente",
-                "Sucursal",
-                "Ingrediente",
-                "¿Bloquea el análisis?",
+                _texto("Severidad", "Severity"),
+                _texto("Hallazgo", "Finding"),
+                _texto("Fuente", "Source"),
+                _texto("Sucursal", "Location"),
+                _texto("Ingrediente", "Ingredient"),
+                _texto("¿Bloquea el análisis?", "Blocks analysis?"),
             ]
         ]
         st.dataframe(
@@ -899,23 +1213,23 @@ with pestanas[3]:
             width="stretch",
         )
         st.download_button(
-            "Descargar reporte de calidad · CSV",
+            _texto("Descargar reporte de calidad · CSV", "Download quality report · CSV"),
             data=dataframe_a_csv_bytes(hallazgos),
             file_name="reporte_calidad_datos.csv",
             mime="text/csv",
         )
 
-    _separador("Rendimiento del modelo")
+    _separador(_texto("Rendimiento del modelo", "Model performance"))
     wape_mediano = analisis.proyecciones["wape_backtest_pct"].replace([float("inf"), float("-inf")], pd.NA).dropna().median()
     modelo_metricas = st.columns(4)
     with modelo_metricas[0]:
-        _tarjeta_metrica("Proyecciones", len(analisis.proyecciones), "sucursal + ingrediente")
+        _tarjeta_metrica(_texto("Proyecciones", "Forecasts"), len(analisis.proyecciones), _texto("sucursal + ingrediente", "location + ingredient"))
     with modelo_metricas[1]:
-        _tarjeta_metrica("Métodos usados", analisis.proyecciones["metodo_proyeccion"].nunique(), "selección adaptativa")
+        _tarjeta_metrica(_texto("Métodos usados", "Methods used"), analisis.proyecciones["metodo_proyeccion"].nunique(), _texto("selección adaptativa", "adaptive selection"))
     with modelo_metricas[2]:
-        _tarjeta_metrica("WAPE mediano", _formatear_porcentaje(wape_mediano), "error retrospectivo", "good")
+        _tarjeta_metrica(_texto("WAPE mediano", "Median WAPE"), _formatear_porcentaje(wape_mediano), _texto("error retrospectivo", "backtest error"), "good")
     with modelo_metricas[3]:
-        _tarjeta_metrica("Series atípicas", int((analisis.proyecciones["cantidad_atipicos"] > 0).sum()), "requieren contexto")
+        _tarjeta_metrica(_texto("Series atípicas", "Outlier series"), int((analisis.proyecciones["cantidad_atipicos"] > 0).sum()), _texto("requieren contexto", "require context"))
 
     metodos = (
         analisis.proyecciones.groupby("metodo_proyeccion")
@@ -923,15 +1237,18 @@ with pestanas[3]:
         .rename("cantidad")
         .reset_index()
     )
-    metodos["Método"] = metodos["metodo_proyeccion"].map(METODO_ETIQUETAS)
+    metodo_columna = _texto("Método", "Method")
+    metodos[metodo_columna] = metodos["metodo_proyeccion"].map(
+        METODO_ETIQUETAS_EN if _en_ingles() else METODO_ETIQUETAS
+    )
     figura_metodos = px.bar(
         metodos,
-        x="Método",
+        x=metodo_columna,
         y="cantidad",
-        labels={"cantidad": "Combinaciones"},
+        labels={"cantidad": _texto("Combinaciones", "Combinations")},
         text_auto=True,
         color_discrete_sequence=["#C9251A"],
-        title="Método elegido por serie",
+        title=_texto("Método elegido por serie", "Method selected by series"),
     )
     figura_metodos.update_layout(showlegend=False)
     st.plotly_chart(
@@ -940,7 +1257,7 @@ with pestanas[3]:
         config={"displayModeBar": False},
     )
 
-    _separador("Trazabilidad de cada proyección")
+    _separador(_texto("Trazabilidad de cada proyección", "Forecast traceability"))
     columnas_modelo_tabla = [
         "sucursal",
         "ingrediente_id",
@@ -955,18 +1272,18 @@ with pestanas[3]:
     tabla_modelos = analisis.proyecciones[columnas_modelo_tabla].copy()
     tabla_modelos["metodo_proyeccion"] = tabla_modelos[
         "metodo_proyeccion"
-    ].map(METODO_ETIQUETAS)
+    ].map(METODO_ETIQUETAS_EN if _en_ingles() else METODO_ETIQUETAS)
     tabla_modelos = tabla_modelos.rename(
         columns={
-            "sucursal": "Sucursal",
-            "ingrediente_id": "Ingrediente",
-            "consumo_proyectado_unidad_base": "Consumo proyectado",
-            "metodo_proyeccion": "Método",
-            "cantidad_atipicos": "Datos atípicos",
-            "semanas_atipicas": "Semanas atípicas",
-            "mae_backtest": "MAE retrospectivo",
-            "wape_backtest_pct": "WAPE retrospectivo (%)",
-            "explicacion_proyeccion": "Explicación",
+            "sucursal": _texto("Sucursal", "Location"),
+            "ingrediente_id": _texto("Ingrediente", "Ingredient"),
+            "consumo_proyectado_unidad_base": _texto("Consumo proyectado", "Forecast consumption"),
+            "metodo_proyeccion": _texto("Método", "Method"),
+            "cantidad_atipicos": _texto("Datos atípicos", "Outliers"),
+            "semanas_atipicas": _texto("Semanas atípicas", "Outlier weeks"),
+            "mae_backtest": _texto("MAE retrospectivo", "Backtest MAE"),
+            "wape_backtest_pct": _texto("WAPE retrospectivo (%)", "Backtest WAPE (%)"),
+            "explicacion_proyeccion": _texto("Explicación", "Explanation (source language)"),
         }
     )
     st.dataframe(
@@ -976,136 +1293,181 @@ with pestanas[3]:
         height=420,
     )
 
-    with st.expander("Supuestos operativos del cálculo"):
+    with st.expander(_texto("Supuestos operativos del cálculo", "Calculation assumptions")):
         st.markdown(
-            """
+            _texto(
+                """
 - S1 es la semana más antigua y S6 la más reciente.
 - El inventario actual está disponible antes de la semana proyectada.
 - La orden cubre una semana y no utiliza stock de seguridad adicional.
 - Solo se compran formatos completos.
 - Una fila omitida equivale a cero formatos solicitados.
 - No se inventan precios, clientes, vencimientos ni tiempos de entrega que no están en los datos.
-            """
+                """,
+                """
+- S1 is the oldest week and S6 is the most recent.
+- Current inventory is available before the forecast week.
+- The order covers one week and uses no additional safety stock.
+- Only complete purchase formats are ordered.
+- A missing row is treated as zero requested formats.
+- Prices, customers, expiry dates and lead times not present in the data are never invented.
+                """,
+            )
         )
 
-with pestanas[4]:
-    _titulo_seccion(
-        "05 · Consultar",
-        "Barrio AI",
-        "Pregunta en lenguaje natural sobre alertas, inventario, proyección, proveedores y cantidades recomendadas.",
-    )
 
-    if generador_ia is not None:
-        modo_asistente = f"IA conectada · {modelo_gemini}"
-        descripcion_asistente = "Gemini interpreta la pregunta; el motor verificado conserva el control de todas las cantidades."
-    else:
-        modo_asistente = "Modo local verificado"
-        descripcion_asistente = "Disponible sin internet para consultas directas sobre los resultados ya calculados."
-        if error_configuracion_ia:
-            with st.expander("Por qué se activó el modo local"):
-                st.code(error_configuracion_ia)
-
-    st.markdown(
-        f"""
-        <div class="bp-ai-hero">
-          <div>
-            <h3>Barrio AI · Asistente de compras</h3>
-            <p>{_seguro(descripcion_asistente)}</p>
-          </div>
-          <div class="bp-ai-mode"><span class="bp-dot bp-dot--{'ok' if generador_ia is not None else 'warn'}"></span> {_seguro(modo_asistente)}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    if generador_ia is None:
-        st.info("Respaldo local activo. Las respuestas siguen usando únicamente los resultados calculados.")
-
-    _separador("Preguntas sugeridas")
-    sugerencias = [
-        "¿Qué debo revisar primero?",
-        "¿Cuánta harina debe comprar Costa del Este?",
-        "¿Qué están pidiendo de más?",
-        "¿Quién provee la mozzarella?",
-    ]
-    columnas_sugerencias = st.columns(2)
-    pregunta_sugerida = None
-    for indice, sugerencia in enumerate(sugerencias):
-        if columnas_sugerencias[indice % 2].button(
-            sugerencia,
-            width="stretch",
-            key=f"sugerencia_asistente_{indice}",
-        ):
-            pregunta_sugerida = sugerencia
-
+def _renderizar_barrio_ai_flotante() -> None:
     if "mensajes_asistente" not in st.session_state:
-        st.session_state.mensajes_asistente = [
-            {
-                "role": "assistant",
-                "content": (
-                    "Hola, soy Barrio AI. Puedo ayudarte a revisar prioridades, cantidades recomendadas, "
-                    "inventario, consumo proyectado y proveedores. Los números siempre salen del análisis de esta orden."
-                ),
-                "modo": "local",
-                "evidencia": [],
-                "advertencia": None,
-            }
-        ]
-
-    for mensaje in st.session_state.mensajes_asistente:
-        with st.chat_message(mensaje["role"]):
-            st.markdown(mensaje["content"])
-            if mensaje["role"] == "assistant" and mensaje.get("modo"):
-                modo_mensaje = "Gemini + cálculo verificado" if mensaje.get("modo") == "gemini" else "Cálculo local verificado"
-                st.caption(modo_mensaje)
-            if mensaje.get("advertencia"):
-                st.warning(mensaje["advertencia"])
-            evidencia = mensaje.get("evidencia") or []
-            if mensaje["role"] == "assistant" and evidencia:
-                with st.expander("Datos usados para responder"):
-                    for elemento in evidencia:
-                        st.write(f"- {elemento}")
-
-    st.markdown("#### Escribe tu pregunta")
-    pregunta_escrita = st.chat_input("Ejemplo: ¿Cuántas cajas de mozzarella necesita Brisas del Golf?")
-    pregunta = pregunta_sugerida or pregunta_escrita
-
-    if pregunta:
-        mensaje_usuario = {"role": "user", "content": pregunta}
-        st.session_state.mensajes_asistente.append(mensaje_usuario)
-        with st.chat_message("user"):
-            st.markdown(pregunta)
-
-        historial = [
-            {"role": mensaje["role"], "content": mensaje["content"]}
-            for mensaje in st.session_state.mensajes_asistente[-8:]
-        ]
-        with st.chat_message("assistant"):
-            with st.spinner("Barrio AI está consultando los resultados..."):
-                respuesta = responder_asistente(
-                    pregunta,
-                    analisis,
-                    generador_llm=generador_ia,
-                    historial=historial,
-                )
-            st.markdown(respuesta.respuesta)
-            st.caption("Gemini + cálculo verificado" if respuesta.modo == "gemini" else "Cálculo local verificado")
-            if respuesta.advertencia:
-                st.warning(respuesta.advertencia)
-            if respuesta.evidencia:
-                with st.expander("Datos usados para responder"):
-                    for elemento in respuesta.evidencia:
-                        st.write(f"- {elemento}")
-
-        st.session_state.mensajes_asistente.append(
-            {
-                "role": "assistant",
-                "content": respuesta.respuesta,
-                "modo": respuesta.modo,
-                "evidencia": list(respuesta.evidencia),
-                "advertencia": respuesta.advertencia,
-            }
-        )
-
-    if st.button("Limpiar historial", key="limpiar_asistente"):
         st.session_state.mensajes_asistente = []
-        st.rerun()
+
+    conectado = generador_ia is not None
+    modo_asistente = (
+        f"{_texto('IA conectada', 'AI connected')} · {modelo_gemini}"
+        if conectado
+        else _texto("Modo local verificado", "Verified local mode")
+    )
+    descripcion_asistente = _texto(
+        "Pregunta desde cualquier vista. Barrio AI usa la orden activa y los resultados calculados de este tablero.",
+        "Ask from any view. Barrio AI uses the active order and the calculated results in this dashboard.",
+    )
+
+    with st.container(key="barrio_ai_floating"):
+        with st.popover(
+            "BARRIO AI",
+            help=_texto("Abrir asistente de compras", "Open purchasing assistant"),
+            use_container_width=False,
+        ):
+            st.markdown(
+                f"""
+                <div class="bp-ai-panel-head">
+                  <div class="bp-ai-panel-mark" aria-hidden="true">AI</div>
+                  <div>
+                    <div class="bp-ai-panel-kicker">BARRIO AI</div>
+                    <h3>{_texto('Tu copiloto de compras', 'Your purchasing copilot')}</h3>
+                    <p>{_seguro(descripcion_asistente)}</p>
+                  </div>
+                </div>
+                <div class="bp-ai-panel-status">
+                  <span class="bp-dot bp-dot--{'ok' if conectado else 'warn'}"></span>
+                  <span>{_seguro(modo_asistente)}</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            if error_configuracion_ia:
+                with st.expander(_texto("Por qué se activó el modo local", "Why local mode is active")):
+                    st.code(error_configuracion_ia)
+            elif not conectado:
+                st.caption(
+                    _texto(
+                        "Respaldo local activo: las respuestas siguen usando únicamente resultados verificados.",
+                        "Local fallback active: answers still use verified results only.",
+                    )
+                )
+
+            sugerencias = (
+                [
+                    "What should I review first?",
+                    "How much flour should Costa del Este buy?",
+                    "What is being overordered?",
+                    "Who supplies mozzarella?",
+                ]
+                if _en_ingles()
+                else [
+                    "¿Qué debo revisar primero?",
+                    "¿Cuánta harina debe comprar Costa del Este?",
+                    "¿Qué están pidiendo de más?",
+                    "¿Quién provee la mozzarella?",
+                ]
+            )
+            st.caption(_texto("Prueba una pregunta", "Try a question"))
+            columnas_sugerencias = st.columns(2)
+            pregunta_sugerida = None
+            for indice, sugerencia in enumerate(sugerencias):
+                if columnas_sugerencias[indice % 2].button(
+                    sugerencia,
+                    width="stretch",
+                    key=f"sugerencia_flotante_{indice}_{st.session_state.idioma_ui}",
+                ):
+                    pregunta_sugerida = sugerencia
+
+            with st.container(height=330, key="barrio_ai_history"):
+                if not st.session_state.mensajes_asistente:
+                    st.markdown(
+                        _texto(
+                            "**Hola, soy Barrio AI.** Puedo explicar prioridades, cantidades recomendadas, inventario, proyecciones y proveedores.",
+                            "**Hi, I'm Barrio AI.** I can explain priorities, recommended quantities, inventory, forecasts and suppliers.",
+                        )
+                    )
+                    st.caption(
+                        _texto(
+                            "Los números siempre provienen del análisis de la orden activa.",
+                            "Numbers always come from the active order analysis.",
+                        )
+                    )
+                for mensaje in st.session_state.mensajes_asistente:
+                    with st.chat_message(mensaje["role"]):
+                        st.markdown(mensaje["content"])
+                        if mensaje["role"] == "assistant" and mensaje.get("modo"):
+                            st.caption(
+                                _texto("Gemini + cálculo verificado", "Gemini + verified calculation")
+                                if mensaje.get("modo") == "gemini"
+                                else _texto("Cálculo local verificado", "Verified local calculation")
+                            )
+                        if mensaje.get("advertencia"):
+                            st.warning(mensaje["advertencia"])
+                        evidencia = mensaje.get("evidencia") or []
+                        if mensaje["role"] == "assistant" and evidencia:
+                            with st.expander(_texto("Datos usados para responder", "Data used to answer")):
+                                for elemento in evidencia:
+                                    st.write(f"- {elemento}")
+
+            pregunta_escrita = st.chat_input(
+                _texto(
+                    "Pregunta sobre esta orden...",
+                    "Ask about this order...",
+                ),
+                key="barrio_ai_chat_input",
+            )
+            pregunta = pregunta_sugerida or pregunta_escrita
+
+            if pregunta:
+                st.session_state.mensajes_asistente.append({"role": "user", "content": pregunta})
+                historial = [
+                    {"role": mensaje["role"], "content": mensaje["content"]}
+                    for mensaje in st.session_state.mensajes_asistente[-8:]
+                ]
+                with st.spinner(_texto("Barrio AI está revisando los resultados...", "Barrio AI is reviewing the results...")):
+                    respuesta = responder_asistente(
+                        pregunta,
+                        analisis,
+                        generador_llm=generador_ia,
+                        historial=historial,
+                        idioma=st.session_state.idioma_ui.lower(),
+                    )
+                st.session_state.mensajes_asistente.append(
+                    {
+                        "role": "assistant",
+                        "content": respuesta.respuesta,
+                        "modo": respuesta.modo,
+                        "evidencia": list(respuesta.evidencia),
+                        "advertencia": respuesta.advertencia,
+                    }
+                )
+                st.rerun()
+
+            acciones_chat = st.columns([1, 1.6])
+            if acciones_chat[0].button(
+                _texto("Limpiar", "Clear"),
+                key="limpiar_asistente_flotante",
+                width="stretch",
+            ):
+                st.session_state.mensajes_asistente = []
+                st.rerun()
+            acciones_chat[1].caption(
+                _texto("Siempre disponible en el tablero", "Always available in the dashboard")
+            )
+
+
+_renderizar_barrio_ai_flotante()

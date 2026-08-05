@@ -1,18 +1,18 @@
 :root {
-  --bp-ink: #111111;
-  --bp-ink-soft: #252525;
+  --bp-ink: #231f20;
+  --bp-ink-soft: #312d2e;
   --bp-paper: #ffffff;
   --bp-canvas: #f5f5f3;
   --bp-surface: #fafaf8;
   --bp-border: #dededa;
   --bp-border-strong: #b8b8b2;
   --bp-muted: #65655f;
-  --bp-red: #c9251a;
+  --bp-red: #cf2f2c;
   --bp-red-dark: #871d16;
   --bp-orange: #b84c00;
   --bp-yellow: #8a6500;
   --bp-green: #187144;
-  --bp-focus: #111111;
+  --bp-focus: #cf2f2c;
   --bp-radius-sm: 4px;
   --bp-radius-md: 8px;
   --bp-shadow: 0 2px 8px rgba(17, 17, 17, 0.06);
@@ -38,6 +38,7 @@ body,
 }
 
 .block-container {
+  position: relative;
   box-sizing: border-box;
   width: 100%;
   max-width: 1480px;
@@ -71,19 +72,21 @@ a {
   text-underline-offset: 0.18em;
 }
 
-/* Brand header */
+/* Brand header: aligned to the official Barrio Pizza web identity without
+   bundling the proprietary Zuume or Sequel Sans font files. */
 .bp-header {
   position: relative;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(340px, 1fr);
-  gap: 0.8rem;
-  align-items: end;
+  grid-template-columns: minmax(0, 1.35fr) minmax(420px, 1fr);
+  gap: 2rem;
+  align-items: center;
+  min-height: 270px;
   margin-bottom: 1rem;
-  padding: 1rem 1.5rem 1.1rem;
+  padding: 3.15rem 2rem 2.2rem;
   color: var(--bp-paper);
   background: var(--bp-ink);
-  border-top: 5px solid var(--bp-red);
+  border-top: 4px solid var(--bp-red);
   box-shadow: var(--bp-shadow);
   animation: bp-enter 340ms ease-out both;
 }
@@ -91,14 +94,44 @@ a {
 .bp-header::after {
   content: "";
   position: absolute;
-  top: -72px;
-  right: -55px;
-  width: 190px;
-  height: 190px;
-  border: 22px solid var(--bp-red);
+  bottom: -86px;
+  left: 45%;
+  width: 220px;
+  height: 220px;
+  border: 28px solid var(--bp-red);
   border-radius: 50%;
-  opacity: 0.2;
+  opacity: 0.12;
   pointer-events: none;
+}
+
+.bp-header-main {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 1.35rem;
+  align-items: center;
+}
+
+.bp-header-logo {
+  width: 118px;
+  height: 118px;
+  object-fit: contain;
+  filter: invert(1) brightness(2.6) contrast(1.2);
+}
+
+.bp-header-watermark {
+  position: absolute;
+  z-index: 0;
+  right: -95px;
+  bottom: -135px;
+  width: 440px;
+  height: 440px;
+  object-fit: contain;
+  opacity: 0.055;
+  filter: invert(1) brightness(3);
+  pointer-events: none;
+  transform: rotate(-8deg);
 }
 
 .bp-wordmark {
@@ -115,29 +148,37 @@ a {
   max-width: 760px;
   margin: 0;
   color: var(--bp-paper);
-  font-size: clamp(2rem, 3.5vw, 2.8rem);
+  font-size: clamp(2.85rem, 5vw, 4.9rem);
+  letter-spacing: -0.045em;
+  line-height: 0.87;
   text-transform: uppercase;
+}
+
+.bp-header h1 span {
+  color: var(--bp-red);
 }
 
 .bp-header p {
   max-width: 760px;
-  margin: 0.4rem 0 0;
+  margin: 0.85rem 0 0;
   color: #cfcfca;
-  font-size: 0.98rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .bp-status-grid {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1.25rem;
   border-top: 1px solid #454545;
   border-left: 1px solid #454545;
 }
 
 .bp-status-item {
   min-width: 0;
-  padding: 0.55rem 0.65rem;
+  padding: 0.72rem 0.75rem;
   border-right: 1px solid #454545;
   border-bottom: 1px solid #454545;
 }
@@ -158,8 +199,20 @@ a {
   min-width: 0;
   margin-top: 0.26rem;
   color: var(--bp-paper);
-  font-size: 0.82rem;
+  font-size: 0.79rem;
   font-weight: 700;
+}
+
+.bp-header-tagline {
+  position: absolute;
+  right: 2rem;
+  bottom: 0.72rem;
+  z-index: 2;
+  color: var(--bp-red);
+  font-size: 0.67rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
 .bp-status-value span:last-child {
@@ -422,35 +475,42 @@ a {
   font-weight: 800;
 }
 
-.bp-ai-hero {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 1rem;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding: 1.2rem 1.3rem;
-  color: var(--bp-paper);
-  background: var(--bp-ink);
-  border-left: 5px solid var(--bp-red);
+/* ES / EN control mirrors the compact language switch on barriopizza.com. */
+.st-key-bp_language_switch {
+  position: absolute;
+  z-index: 20;
+  top: 5rem;
+  right: 2rem;
+  width: auto;
 }
 
-.bp-ai-hero h3 {
-  margin: 0;
-  color: var(--bp-paper);
-  font-size: 1.55rem;
+.st-key-bp_language_switch [data-testid="stButtonGroup"] {
+  gap: 0;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
 }
 
-.bp-ai-hero p {
-  margin: 0.35rem 0 0;
-  color: #c8c8c3;
-  font-size: 0.87rem;
-}
-
-.bp-ai-mode {
-  color: var(--bp-paper);
+.st-key-bp_language_switch button {
+  min-width: 46px;
+  min-height: 30px;
+  padding: 0.2rem 0.75rem;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  font-family: var(--bp-display);
   font-size: 0.75rem;
-  font-weight: 800;
-  white-space: nowrap;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+}
+
+.st-key-bp_language_switch button[aria-pressed="true"],
+.st-key-bp_language_switch button[aria-checked="true"],
+.st-key-bp_language_switch button[data-selected="true"] {
+  color: #fff;
+  background: var(--bp-red) !important;
 }
 
 /* Streamlit components.
@@ -476,16 +536,27 @@ section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
 }
 
 .bp-side-brand {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 0.8rem;
+  align-items: center;
   margin-bottom: 1.25rem;
-  padding: 0.35rem 0 1rem;
+  padding: 0.2rem 0 1rem;
   border-bottom: 3px solid var(--bp-red);
+}
+
+.bp-side-brand img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  filter: invert(1) brightness(2.7) contrast(1.2);
 }
 
 .bp-side-brand strong {
   display: block;
   color: #fff;
   font-family: var(--bp-display);
-  font-size: 1.2rem;
+  font-size: 1.45rem;
   font-weight: 900;
   letter-spacing: 0.12em;
 }
@@ -637,6 +708,169 @@ textarea:focus-visible,
   border-left: 4px solid var(--bp-red);
 }
 
+/* BARRIO AI lives outside the tab system so it remains available everywhere.
+   st-key-* is the public key-derived hook; stPopoverBody is an internal
+   Streamlit selector and should be reviewed after framework upgrades. */
+.st-key-barrio_ai_floating {
+  position: fixed;
+  z-index: 999990;
+  right: 1.45rem;
+  bottom: 1.35rem;
+  width: auto;
+}
+
+.st-key-barrio_ai_floating [data-testid="stPopoverButton"] {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  min-height: 76px;
+  padding: 0.65rem;
+  color: #fff;
+  background: var(--bp-ink);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 10px 28px rgba(35, 31, 32, 0.28), 0 0 0 3px var(--bp-red);
+  font-family: var(--bp-display);
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+  white-space: normal;
+  text-transform: uppercase;
+}
+
+.st-key-barrio_ai_floating [data-testid="stPopoverButton"]::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 10px;
+  height: 10px;
+  background: #40b878;
+  border: 2px solid #fff;
+  border-radius: 50%;
+}
+
+.st-key-barrio_ai_floating [data-testid="stPopoverButton"]:hover {
+  color: #fff;
+  background: var(--bp-red);
+  border-color: #fff;
+  transform: translateY(-3px) scale(1.02);
+}
+
+.st-key-barrio_ai_floating [data-testid="stPopoverButton"]:active,
+.st-key-barrio_ai_floating [data-testid="stPopoverButton"]:focus {
+  color: #fff !important;
+}
+
+.st-key-barrio_ai_floating [data-testid="stPopoverButton"] [data-testid="stIconMaterial"] {
+  display: none;
+}
+
+.st-key-barrio_ai_floating [data-testid="stPopoverButton"] [aria-hidden="true"] {
+  display: none;
+}
+
+.st-key-barrio_ai_floating [data-testid="stPopoverButton"] > div,
+.st-key-barrio_ai_floating [data-testid="stPopoverButton"] p {
+  width: 100%;
+  margin: 0;
+  overflow-wrap: normal;
+  text-align: center;
+  word-break: normal;
+}
+
+.st-key-barrio_ai_floating [data-testid="stPopoverButton"] p {
+  color: #fff !important;
+}
+
+[data-testid="stPopoverBody"] {
+  width: min(440px, calc(100vw - 2rem));
+  max-width: 440px;
+  max-height: min(820px, calc(100vh - 2rem));
+  overflow-y: auto;
+  padding: 0.85rem;
+  background: #fff;
+  border: 1px solid var(--bp-ink);
+  border-top: 5px solid var(--bp-red);
+  border-radius: 6px;
+  box-shadow: 0 20px 55px rgba(35, 31, 32, 0.25);
+}
+
+.bp-ai-panel-head {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 0.8rem;
+  align-items: start;
+  padding: 0.3rem 0.15rem 0.8rem;
+  border-bottom: 1px solid var(--bp-border);
+}
+
+.bp-ai-panel-mark {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  color: #fff;
+  background: var(--bp-ink);
+  border: 3px solid var(--bp-red);
+  border-radius: 50%;
+  font-family: var(--bp-display);
+  font-size: 1.1rem;
+  font-weight: 950;
+}
+
+.bp-ai-panel-kicker {
+  color: var(--bp-red);
+  font-size: 0.63rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+
+.bp-ai-panel-head h3 {
+  margin: 0.05rem 0 0;
+  font-size: 1.4rem;
+  text-transform: uppercase;
+}
+
+.bp-ai-panel-head p {
+  margin: 0.28rem 0 0;
+  color: var(--bp-muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.bp-ai-panel-status {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  margin: 0.7rem 0;
+  padding: 0.42rem 0.55rem;
+  color: var(--bp-ink);
+  background: var(--bp-canvas);
+  border: 1px solid var(--bp-border);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.st-key-barrio_ai_history {
+  margin: 0.65rem 0;
+  padding: 0.25rem;
+  background: #fafaf8;
+  border: 1px solid var(--bp-border);
+}
+
+[data-testid="stPopoverBody"] [data-testid="stChatMessage"] {
+  padding: 0.65rem 0.7rem;
+  font-size: 0.84rem;
+}
+
+[data-testid="stPopoverBody"] [data-testid="stChatInput"] textarea {
+  min-height: 46px;
+  background: #fff;
+  border-color: var(--bp-border-strong);
+}
+
 [data-testid="stAlert"] {
   border-radius: var(--bp-radius-sm);
 }
@@ -651,9 +885,27 @@ textarea:focus-visible,
     grid-template-columns: 1fr;
     gap: 1.25rem;
   }
+
+  .bp-status-grid {
+    max-width: 760px;
+  }
 }
 
 @media (max-width: 980px) {
+
+  .bp-header {
+    padding-right: 1.4rem;
+    padding-left: 1.4rem;
+  }
+
+  .bp-header-main {
+    grid-template-columns: 92px minmax(0, 1fr);
+  }
+
+  .bp-header-logo {
+    width: 92px;
+    height: 92px;
+  }
 
   .bp-status-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -672,21 +924,41 @@ textarea:focus-visible,
 
 @media (max-width: 640px) {
   .block-container {
-    padding: 0.75rem 0.75rem 3rem;
+    padding: 0.75rem 0.75rem 5.5rem;
   }
 
   .bp-header {
-    padding: 1.2rem 1rem;
+    min-height: 0;
+    padding: 4rem 1rem 2.35rem;
+  }
+
+  .bp-header-main {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  .bp-header-logo {
+    width: 68px;
+    height: 68px;
+  }
+
+  .bp-header h1 {
+    font-size: clamp(2.6rem, 15vw, 4rem);
+  }
+
+  .bp-header-tagline {
+    right: 1rem;
+    bottom: 0.65rem;
+  }
+
+  .st-key-bp_language_switch {
+    top: 4.25rem;
+    right: 1.75rem;
   }
 
   .bp-status-grid,
-  .bp-alert-row,
-.bp-ai-hero {
+  .bp-alert-row {
     grid-template-columns: 1fr;
-  }
-
-  .bp-ai-mode {
-    white-space: normal;
   }
 
   [data-baseweb="tab-list"] {
@@ -695,6 +967,24 @@ textarea:focus-visible,
 
   [data-baseweb="tab"] {
     flex: 0 0 auto;
+  }
+
+  .st-key-barrio_ai_floating {
+    right: 0.9rem;
+    bottom: 0.8rem;
+  }
+
+  .st-key-barrio_ai_floating [data-testid="stPopoverButton"] {
+    width: 64px;
+    height: 64px;
+    min-height: 64px;
+    font-size: 0.64rem;
+  }
+
+  [data-testid="stPopoverBody"] {
+    width: calc(100vw - 1rem);
+    max-width: calc(100vw - 1rem);
+    max-height: calc(100vh - 1rem);
   }
 }
 
