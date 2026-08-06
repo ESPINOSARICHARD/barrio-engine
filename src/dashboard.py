@@ -149,6 +149,78 @@ def completar_orden_para_editor(
     return completas[COLUMNAS_ORDEN].reset_index(drop=True)
 
 
+def preparar_reparacion_orden(
+    orden: pd.DataFrame,
+    consumo_historico: pd.DataFrame,
+    ingredientes: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Separa excepciones y crea una plantilla completa sin corregir IDs."""
+    completa = completar_orden_para_editor(
+        orden=orden,
+        consumo_historico=consumo_historico,
+        ingredientes=ingredientes,
+    )
+    sucursales_validas = set(
+        consumo_historico["sucursal"].dropna().astype(str).str.strip()
+    )
+    ingredientes_validos = set(
+        ingredientes["ingrediente_id"].dropna().astype(str).str.strip()
+    )
+
+    mascara_valida = (
+        completa["sucursal"].isin(sucursales_validas)
+        & completa["ingrediente_id"].isin(ingredientes_validos)
+    )
+    plantilla = completa.loc[mascara_valida, COLUMNAS_ORDEN].copy()
+    excepciones = completa.loc[~mascara_valida, COLUMNAS_ORDEN].copy()
+
+    claves_originales = set(
+        zip(
+            orden["sucursal"].astype(str).str.strip(),
+            orden["ingrediente_id"].astype(str).str.strip(),
+            strict=True,
+        )
+    )
+    reporte: list[dict[str, object]] = []
+    for fila in plantilla.itertuples(index=False):
+        clave = (str(fila.sucursal), str(fila.ingrediente_id))
+        if clave not in claves_originales:
+            reporte.append(
+                {
+                    "accion": "COMBINACION_AGREGADA_CON_CERO",
+                    "sucursal": fila.sucursal,
+                    "ingrediente_id": fila.ingrediente_id,
+                    "detalle": (
+                        "La combinación faltante se añadió con cero para revisión; "
+                        "no se modificó ningún identificador."
+                    ),
+                }
+            )
+    for fila in excepciones.itertuples(index=False):
+        reporte.append(
+            {
+                "accion": "FILA_SEPARADA_PARA_REVISION",
+                "sucursal": fila.sucursal,
+                "ingrediente_id": fila.ingrediente_id,
+                "detalle": (
+                    "La fila se separó porque la sucursal o el ingrediente no existe "
+                    "en los catálogos disponibles."
+                ),
+            }
+        )
+
+    return (
+        plantilla.sort_values(
+            ["sucursal", "ingrediente_id"], kind="stable"
+        ).reset_index(drop=True),
+        excepciones.reset_index(drop=True),
+        pd.DataFrame(
+            reporte,
+            columns=["accion", "sucursal", "ingrediente_id", "detalle"],
+        ),
+    )
+
+
 def construir_analisis(
     datos: dict[str, pd.DataFrame],
     orden_compra: pd.DataFrame | None = None,

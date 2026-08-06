@@ -336,6 +336,10 @@ html.bp-sidebar-open .bp-status-grid {
   line-height: 1.3;
 }
 
+.bp-metric-row-gap {
+  height: clamp(0.5rem, 0.8vw, 0.7rem);
+}
+
 /* Operational recommendation */
 .bp-action {
   display: grid;
@@ -502,11 +506,12 @@ html.bp-sidebar-open .bp-status-grid {
 
 /* ES / EN control mirrors the compact language switch on barriopizza.com. */
 .st-key-bp_language_switch {
-  position: absolute;
+  position: relative;
   z-index: 20;
-  top: 5rem;
-  right: 2rem;
-  width: auto;
+  inset: auto;
+  width: fit-content !important;
+  max-width: 100%;
+  margin: 0 0 0.5rem auto;
 }
 
 .st-key-bp_language_switch [data-testid="stButtonGroup"] {
@@ -520,8 +525,8 @@ html.bp-sidebar-open .bp-status-grid {
   gap: 0 !important;
   overflow: hidden;
   padding: 0 !important;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.86);
+  background: var(--bp-paper);
+  border: 1px solid var(--bp-ink);
   border-radius: 999px;
 }
 
@@ -529,7 +534,7 @@ html.bp-sidebar-open .bp-status-grid {
   min-width: 46px;
   min-height: 30px;
   padding: 0.2rem 0.75rem;
-  color: #fff;
+  color: var(--bp-ink) !important;
   background: transparent;
   border: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.46);
@@ -539,6 +544,10 @@ html.bp-sidebar-open .bp-status-grid {
   font-size: 0.75rem;
   font-weight: 850;
   letter-spacing: 0.06em;
+}
+
+.st-key-bp_language_switch button * {
+  color: var(--bp-ink) !important;
 }
 
 .st-key-bp_language_switch button:first-child {
@@ -553,8 +562,14 @@ html.bp-sidebar-open .bp-status-grid {
 .st-key-bp_language_switch button[aria-pressed="true"],
 .st-key-bp_language_switch button[aria-checked="true"],
 .st-key-bp_language_switch button[data-selected="true"] {
-  color: #fff;
+  color: #fff !important;
   background: var(--bp-red) !important;
+}
+
+.st-key-bp_language_switch button[aria-pressed="true"] *,
+.st-key-bp_language_switch button[aria-checked="true"] *,
+.st-key-bp_language_switch button[data-selected="true"] * {
+  color: #fff !important;
 }
 
 /* Streamlit components.
@@ -1056,7 +1071,7 @@ textarea:focus-visible,
   }
 
   .bp-header h1 {
-    font-size: clamp(2.6rem, 15vw, 4rem);
+    font-size: clamp(2.15rem, 11.5vw, 3rem);
   }
 
   .bp-header-tagline {
@@ -1065,8 +1080,8 @@ textarea:focus-visible,
   }
 
   .st-key-bp_language_switch {
-    top: 4.25rem;
-    right: 1.75rem;
+    inset: auto;
+    margin-left: auto;
   }
 
   .bp-status-grid,
@@ -1097,7 +1112,10 @@ textarea:focus-visible,
   [data-testid="stPopoverBody"] {
     width: calc(100vw - 1rem);
     max-width: calc(100vw - 1rem);
-    max-height: calc(100dvh - 0.5rem);
+    /* The popover opens above the 64 px floating trigger. Leave that anchor
+       space outside its scroll box so the header never starts off-screen. */
+    max-height: calc(100dvh - 5.5rem);
+    overscroll-behavior: contain;
   }
 }
 

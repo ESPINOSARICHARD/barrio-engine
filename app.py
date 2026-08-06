@@ -11,6 +11,30 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from src.alertas import ErrorAlertas
+from src.aprobaciones import (
+    CONFIANZA_ALTA,
+    CONFIANZA_MEDIA,
+    CONFIANZA_REVISION,
+    DECISION_APLICAR,
+    DECISION_CATALOGO,
+    DECISION_DEVOLVER,
+    DECISION_ETIQUETAS_EN,
+    DECISION_ETIQUETAS_ES,
+    DECISION_MANTENER,
+    ErrorAprobacion,
+    aplicar_recomendaciones_alta_confianza,
+    construir_casos_aprobacion,
+    construir_contexto_aprobacion,
+    crear_huella_revision,
+    generar_bitacora_decisiones,
+    generar_mensaje_proveedor,
+    generar_mensaje_sucursal,
+    generar_orden_aprobada,
+    opciones_decision,
+    registrar_decision,
+    resumir_aprobacion,
+    simular_escenario_demanda,
+)
 from src.asistente import (
     ErrorAsistente,
     crear_generador_gemini,
@@ -33,10 +57,16 @@ from src.dashboard import (
     obtener_caso,
     porcentaje_orden_correcta,
     preparar_orden_por_proveedor,
+    preparar_reparacion_orden,
     preparar_serie_detalle,
     proyeccion_del_caso,
     resumen_por_estado,
     resumen_por_sucursal,
+)
+from src.presentacion import (
+    aplicar_nombres_visibles,
+    nombre_ingrediente_visible,
+    reemplazar_nombre_visible,
 )
 from src.proyecciones import ErrorProyeccion
 
@@ -125,6 +155,21 @@ def _texto(espanol: str, ingles: str) -> str:
     return ingles if _en_ingles() else espanol
 
 
+def _idioma_codigo() -> str:
+    return "en" if _en_ingles() else "es"
+
+
+def _nombre_visible(
+    ingrediente_id: object,
+    nombre: object,
+) -> str:
+    return nombre_ingrediente_visible(
+        ingrediente_id,
+        nombre,
+        _idioma_codigo(),
+    )
+
+
 def _etiqueta_prioridad(codigo: object) -> str:
     clave = str(codigo)
     etiquetas = PRIORIDAD_ETIQUETAS_EN if _en_ingles() else PRIORIDAD_ETIQUETAS
@@ -141,6 +186,29 @@ def _etiqueta_metodo(codigo: object) -> str:
     clave = str(codigo)
     etiquetas = METODO_ETIQUETAS_EN if _en_ingles() else METODO_ETIQUETAS
     return etiquetas.get(clave, clave)
+
+
+def _etiqueta_confianza(codigo: object) -> str:
+    clave = str(codigo)
+    if _en_ingles():
+        return {
+            CONFIANZA_ALTA: "High",
+            CONFIANZA_MEDIA: "Medium",
+            CONFIANZA_REVISION: "Human review",
+        }.get(clave, clave)
+    return {
+        CONFIANZA_ALTA: "Alta",
+        CONFIANZA_MEDIA: "Media",
+        CONFIANZA_REVISION: "Revisión humana",
+    }.get(clave, clave)
+
+
+def _tono_confianza(codigo: object) -> str:
+    return {
+        CONFIANZA_ALTA: "good",
+        CONFIANZA_MEDIA: "medium",
+        CONFIANZA_REVISION: "critical",
+    }.get(str(codigo), "neutral")
 
 
 def _imagen_data_uri(ruta: Path) -> str:
@@ -457,7 +525,10 @@ def _detalle_formato_ingles(
 def _alerta_en_ingles(fila: pd.Series) -> tuple[str, str, str]:
     estado = str(fila["estado"])
     sucursal = str(fila["sucursal"])
-    ingrediente = str(fila.get("nombre", fila.get("ingrediente_id", "product")))
+    ingrediente = _nombre_visible(
+        fila.get("ingrediente_id", ""),
+        fila.get("nombre", fila.get("ingrediente_id", "product")),
+    )
     solicitado = int(fila["cantidad_formatos_solicitados"])
     recomendado_valor = limpiar_infinito(fila.get("formatos_recomendados"))
     recomendado = int(recomendado_valor) if recomendado_valor is not None else 0
@@ -526,10 +597,24 @@ def _alerta_en_ingles(fila: pd.Series) -> tuple[str, str, str]:
 def _contenido_alerta(fila: pd.Series) -> tuple[str, str, str]:
     if _en_ingles():
         return _alerta_en_ingles(fila)
+    ingrediente_id = fila.get("ingrediente_id", "")
+    nombre_original = fila.get("nombre", ingrediente_id)
     return (
-        str(fila["titulo_alerta"]),
-        str(fila["mensaje_alerta"]),
-        str(fila["accion_recomendada"]),
+        reemplazar_nombre_visible(
+            fila["titulo_alerta"],
+            ingrediente_id=ingrediente_id,
+            nombre_original=nombre_original,
+        ),
+        reemplazar_nombre_visible(
+            fila["mensaje_alerta"],
+            ingrediente_id=ingrediente_id,
+            nombre_original=nombre_original,
+        ),
+        reemplazar_nombre_visible(
+            fila["accion_recomendada"],
+            ingrediente_id=ingrediente_id,
+            nombre_original=nombre_original,
+        ),
     )
 
 
@@ -571,12 +656,13 @@ def _bandeja_alertas(filas: pd.DataFrame) -> None:
         )
         solicitado = _formatear_numero(fila["cantidad_formatos_solicitados"])
         recomendado = _formatear_numero(fila["formatos_recomendados"])
+        nombre_visible = _nombre_visible(fila["ingrediente_id"], fila["nombre"])
         st.markdown(
             f"""
-            <div class="bp-alert-row bp-alert-row--{tono}" role="group" aria-label="{_texto('Alerta', 'Alert')} {_seguro(prioridad)} {_texto('de', 'for')} {_seguro(fila['nombre'])} {_texto('en', 'at')} {_seguro(fila['sucursal'])}">
+            <div class="bp-alert-row bp-alert-row--{tono}" role="group" aria-label="{_texto('Alerta', 'Alert')} {_seguro(prioridad)} {_texto('de', 'for')} {_seguro(nombre_visible)} {_texto('en', 'at')} {_seguro(fila['sucursal'])}">
               <div class="bp-alert-cell"><small>{_texto('Prioridad', 'Priority')}</small><span class="bp-priority bp-priority--{tono}">{_seguro(prioridad)}</span></div>
               <div class="bp-alert-cell"><small>{_texto('Sucursal', 'Location')}</small><strong>{_seguro(fila['sucursal'])}</strong></div>
-              <div class="bp-alert-cell"><small>{_texto('Ingrediente', 'Ingredient')}</small><strong>{_seguro(fila['nombre'])}</strong></div>
+              <div class="bp-alert-cell"><small>{_texto('Ingrediente', 'Ingredient')}</small><strong>{_seguro(nombre_visible)}</strong></div>
               <div class="bp-alert-cell"><small>{_texto('Solicitado → recomendado', 'Requested → recommended')}</small><strong>{_seguro(solicitado)} → {_seguro(recomendado)} · {_seguro(_ajuste_alerta(fila))}</strong></div>
               <div class="bp-alert-action"><small>{_texto('Acción', 'Action')}</small><strong>{_seguro(accion)}</strong></div>
             </div>
@@ -586,7 +672,7 @@ def _bandeja_alertas(filas: pd.DataFrame) -> None:
 
 
 def _orden_para_interfaz(orden: pd.DataFrame) -> pd.DataFrame:
-    tabla = orden.copy()
+    tabla = aplicar_nombres_visibles(orden, idioma=_idioma_codigo())
     tabla["ajuste_interfaz"] = (
         tabla["cantidad_formatos_recomendada"] - tabla["cantidad_formatos_original"]
     )
@@ -637,6 +723,59 @@ def _orden_para_interfaz(orden: pd.DataFrame) -> pd.DataFrame:
     return tabla.rename(columns=nombres)
 
 
+def _orden_aprobada_para_interfaz(orden: pd.DataFrame) -> pd.DataFrame:
+    tabla = aplicar_nombres_visibles(orden, idioma=_idioma_codigo())
+    etiquetas = DECISION_ETIQUETAS_EN if _en_ingles() else DECISION_ETIQUETAS_ES
+    tabla["decision_interfaz"] = tabla["decision_aprobacion"].map(etiquetas).fillna(
+        _texto("Sin alerta", "No alert")
+    )
+    tabla = tabla[
+        [
+            "proveedor",
+            "sucursal",
+            "nombre",
+            "formato_compra",
+            "cantidad_formatos_solicitados",
+            "formatos_recomendados",
+            "cantidad_formatos_aprobada",
+            "ajuste_formatos_aprobado",
+            "cantidad_unidad_base_aprobada",
+            "unidad_base",
+            "decision_interfaz",
+        ]
+    ]
+    nombres = (
+        {
+            "proveedor": "Supplier",
+            "sucursal": "Location",
+            "nombre": "Ingredient",
+            "formato_compra": "Purchase format",
+            "cantidad_formatos_solicitados": "Original quantity",
+            "formatos_recomendados": "System recommendation",
+            "cantidad_formatos_aprobada": "Approved quantity",
+            "ajuste_formatos_aprobado": "Approved adjustment",
+            "cantidad_unidad_base_aprobada": "Approved total",
+            "unidad_base": "Unit",
+            "decision_interfaz": "Human decision",
+        }
+        if _en_ingles()
+        else {
+            "proveedor": "Proveedor",
+            "sucursal": "Sucursal",
+            "nombre": "Ingrediente",
+            "formato_compra": "Presentación",
+            "cantidad_formatos_solicitados": "Cantidad original",
+            "formatos_recomendados": "Recomendación del sistema",
+            "cantidad_formatos_aprobada": "Cantidad aprobada",
+            "ajuste_formatos_aprobado": "Ajuste aprobado",
+            "cantidad_unidad_base_aprobada": "Total aprobado",
+            "unidad_base": "Unidad",
+            "decision_interfaz": "Decisión humana",
+        }
+    )
+    return tabla.rename(columns=nombres)
+
+
 @st.cache_resource(show_spinner=False)
 def _crear_generador_ia(api_key: str, modelo: str):
     return crear_generador_gemini(api_key, modelo)
@@ -668,12 +807,12 @@ except ErrorCargaDatos as error:
 
 
 with st.sidebar:
-    logo_sidebar = _imagen_data_uri(RAIZ / "rsc" / "logo de barrio pizza.png")
+    logo_sidebar = _imagen_data_uri(RAIZ / "assets" / "barrio-wordmark.png")
     st.markdown(
         f"""
         <div class="bp-side-brand">
           <img src="{logo_sidebar}" alt="Barrio Pizza">
-          <div><strong>BARRIO</strong><span>{_texto('Control de compras', 'Purchasing control')}</span></div>
+          <div><strong>{_texto('CONTROL', 'CONTROL')}</strong><span>{_texto('Inteligencia de compras', 'Purchasing intelligence')}</span></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -751,29 +890,53 @@ with st.sidebar:
 
         st.caption(
             _texto(
-                "Edita Cantidad. Sucursal e ingrediente quedan protegidos.",
-                "Edit Quantity. Location and ingredient remain protected.",
+                "Edita Cantidad. Sucursal e ingrediente quedan protegidos; el CSV conserva sus identificadores técnicos.",
+                "Edit Quantity. Location and ingredient remain protected; the CSV keeps its technical identifiers.",
             )
         )
-        orden_activa = st.data_editor(
+        catalogo_editor = aplicar_nombres_visibles(
+            datos_base["ingredientes"],
+            idioma=_idioma_codigo(),
+        )[["ingrediente_id", "nombre"]]
+        orden_editor = orden_editor.merge(
+            catalogo_editor,
+            on="ingrediente_id",
+            how="left",
+        )
+        orden_editor["nombre"] = orden_editor["nombre"].fillna(
+            orden_editor["ingrediente_id"]
+        )
+        orden_editada = st.data_editor(
             orden_editor,
             hide_index=True,
             width="stretch",
             height=390,
-            disabled=["sucursal", "ingrediente_id"],
+            disabled=["sucursal", "ingrediente_id", "nombre"],
             num_rows="fixed",
+            column_order=["sucursal", "nombre", "cantidad_formatos"],
             column_config={
-                "sucursal": st.column_config.TextColumn(_texto("Sucursal", "Location")),
-                "ingrediente_id": st.column_config.TextColumn(_texto("Ingrediente", "Ingredient")),
+                "sucursal": st.column_config.TextColumn(
+                    _texto("Sucursal", "Location"),
+                    width="small",
+                ),
+                "ingrediente_id": None,
+                "nombre": st.column_config.TextColumn(
+                    _texto("Ingrediente", "Ingredient"),
+                    width="small",
+                ),
                 "cantidad_formatos": st.column_config.NumberColumn(
-                    _texto("Cantidad", "Quantity"),
+                    _texto("Cant.", "Qty."),
                     min_value=0,
                     step=1,
                     format="%d",
+                    width="small",
                 ),
             },
             key="editor_orden",
         )
+        orden_activa = orden_editada[
+            ["sucursal", "ingrediente_id", "cantidad_formatos"]
+        ].copy()
         fuente_texto += _texto(" · edición activa", " · editing active")
 
     st.divider()
@@ -833,19 +996,64 @@ if clave_gemini:
         error_configuracion_ia = str(error)
 
 
+casos_aprobacion = construir_casos_aprobacion(analisis.resultados)
+huella_revision = crear_huella_revision(analisis.resultados)
+revision_previa = st.session_state.get("revision_aprobacion")
+revision_reiniciada = bool(
+    revision_previa and revision_previa.get("huella") != huella_revision
+)
+if not revision_previa or revision_previa.get("huella") != huella_revision:
+    st.session_state.revision_aprobacion = {
+        "huella": huella_revision,
+        "decisiones": {},
+    }
+    if revision_reiniciada:
+        st.session_state.mensajes_asistente = []
+
+decisiones_aprobacion = st.session_state.revision_aprobacion["decisiones"]
+estado_aprobacion = resumir_aprobacion(
+    casos_aprobacion,
+    decisiones_aprobacion,
+)
+contexto_aprobacion = construir_contexto_aprobacion(
+    casos_aprobacion,
+    decisiones_aprobacion,
+)
+orden_aprobada: pd.DataFrame | None = None
+if estado_aprobacion["lista_para_aprobar"]:
+    try:
+        orden_aprobada = generar_orden_aprobada(
+            analisis.evaluacion,
+            casos_aprobacion,
+            decisiones_aprobacion,
+        )
+    except ErrorAprobacion:
+        orden_aprobada = None
+
+
 _encabezado_producto(
     fuente_datos=fuente_texto,
     contexto_semana=_contexto_semana(analisis.datos["consumo_historico"]),
     ia_conectada=generador_ia is not None,
 )
 
+if revision_reiniciada:
+    st.toast(
+        _texto(
+            "La orden cambió: se inició una nueva revisión y se limpió el contexto anterior de Barrio AI.",
+            "The order changed: a new review was started and Barrio AI's previous context was cleared.",
+        )
+    )
+
 resumen = analisis.resumen
 porcentaje_correcto = porcentaje_orden_correcta(resumen)
+contexto_escenario: dict[str, object] = {"configurado": False}
 
 pestanas = st.tabs(
     [
         _texto("Resumen ejecutivo", "Executive summary"),
         _texto("Centro de alertas", "Alert center"),
+        _texto("Centro de aprobación", "Approval center"),
         _texto("Orden corregida", "Corrected order"),
         _texto("Calidad y modelo", "Quality and model"),
     ]
@@ -872,6 +1080,10 @@ with pestanas[0]:
         _tarjeta_metrica(_texto("Críticas", "Critical"), resumen["prioridad_critica"], _texto("Resolver antes de aprobar", "Resolve before approval"), "critical")
     with columnas_metricas[2]:
         _tarjeta_metrica(_texto("Riesgo de quiebre", "Stockout risk"), faltantes, _texto("Insuficientes u omitidos", "Underordered or missing"), "high")
+    st.markdown(
+        '<div class="bp-metric-row-gap" aria-hidden="true"></div>',
+        unsafe_allow_html=True,
+    )
     columnas_metricas_secundarias = st.columns(2)
     with columnas_metricas_secundarias[0]:
         _tarjeta_metrica(_texto("Sobrepedidos", "Overorders"), excesos, _texto("Capital o inventario de más", "Excess capital or inventory"), "medium")
@@ -888,7 +1100,7 @@ with pestanas[0]:
             <div class="bp-action" role="status">
               <div class="bp-action-index">01</div>
               <div>
-                <div class="bp-action-label">{_texto('Primera acción recomendada', 'First recommended action')} · {_seguro(primera['sucursal'])} · {_seguro(primera['nombre'])}</div>
+                <div class="bp-action-label">{_texto('Primera acción recomendada', 'First recommended action')} · {_seguro(primera['sucursal'])} · {_seguro(_nombre_visible(primera['ingrediente_id'], primera['nombre']))}</div>
                 <div class="bp-action-copy">{_seguro(primera_accion)}</div>
               </div>
             </div>
@@ -957,6 +1169,172 @@ with pestanas[0]:
             width="stretch",
             config={"displayModeBar": False},
         )
+
+    with st.expander(
+        _texto(
+            "Simulador de demanda · probar un evento o promoción",
+            "Demand simulator · test an event or promotion",
+        )
+    ):
+        st.caption(
+            _texto(
+                "Cambia temporalmente la proyección para responder “¿qué pasaría si…?”. El escenario no modifica la orden activa ni las decisiones guardadas.",
+                "Temporarily change the forecast to answer “what if…?”. The scenario does not modify the active order or saved decisions.",
+            )
+        )
+        controles_escenario = st.columns([1, 1, 1.1])
+        todas_sucursales = _texto("Toda la operación", "All locations")
+        todos_ingredientes = _texto("Todos los ingredientes", "All ingredients")
+        sucursal_escenario = controles_escenario[0].selectbox(
+            _texto("Sucursal del escenario", "Scenario location"),
+            [todas_sucursales]
+            + sorted(analisis.resultados["sucursal"].dropna().unique()),
+            key="simulador_sucursal",
+        )
+        catalogo_simulador = aplicar_nombres_visibles(
+            analisis.datos["ingredientes"],
+            idioma=_idioma_codigo(),
+        )
+        opciones_ingrediente = {
+            str(fila["nombre"]): str(fila["ingrediente_id"])
+            for _, fila in catalogo_simulador.sort_values("nombre").iterrows()
+        }
+        ingrediente_escenario_etiqueta = controles_escenario[1].selectbox(
+            _texto("Ingrediente del escenario", "Scenario ingredient"),
+            [todos_ingredientes] + list(opciones_ingrediente),
+            key="simulador_ingrediente",
+        )
+        variacion_escenario = controles_escenario[2].slider(
+            _texto("Variación esperada", "Expected variation"),
+            min_value=-20,
+            max_value=50,
+            value=10,
+            step=5,
+            format="%+d%%",
+            key="simulador_variacion",
+        )
+        sucursales_objetivo = (
+            None
+            if sucursal_escenario == todas_sucursales
+            else [sucursal_escenario]
+        )
+        ingredientes_objetivo = (
+            None
+            if ingrediente_escenario_etiqueta == todos_ingredientes
+            else [opciones_ingrediente[ingrediente_escenario_etiqueta]]
+        )
+        escenario = simular_escenario_demanda(
+            ingredientes=analisis.datos["ingredientes"],
+            inventario_actual=analisis.datos["inventario_actual"],
+            orden_compra_semana=analisis.datos["orden_compra_semana"],
+            proyecciones=analisis.proyecciones,
+            variacion_pct=variacion_escenario,
+            sucursales=sucursales_objetivo,
+            ingrediente_ids=ingredientes_objetivo,
+        )
+        faltantes_escenario = (
+            escenario.resumen["pedidos_insuficientes"]
+            + escenario.resumen["ingredientes_omitidos"]
+        )
+        metricas_escenario = st.columns(3)
+        with metricas_escenario[0]:
+            _tarjeta_metrica(
+                _texto("Alertas base", "Base alerts"),
+                resumen["alertas_total"],
+                _texto("orden activa", "active order"),
+            )
+        with metricas_escenario[1]:
+            _tarjeta_metrica(
+                _texto("Alertas del escenario", "Scenario alerts"),
+                escenario.resumen["alertas_total"],
+                f"{variacion_escenario:+d}% {_texto('de demanda', 'demand')}",
+                "brand",
+            )
+        with metricas_escenario[2]:
+            _tarjeta_metrica(
+                _texto("Riesgos de quiebre", "Stockout risks"),
+                faltantes_escenario,
+                _texto("en el escenario", "in the scenario"),
+                "high" if faltantes_escenario else "good",
+            )
+
+        comparacion = analisis.resultados[
+            ["sucursal", "ingrediente_id", "nombre", "formatos_recomendados"]
+        ].merge(
+            escenario.resultados[
+                ["sucursal", "ingrediente_id", "formatos_recomendados"]
+            ],
+            on=["sucursal", "ingrediente_id"],
+            how="inner",
+            suffixes=("_base", "_escenario"),
+        )
+        comparacion["ajuste_escenario"] = (
+            comparacion["formatos_recomendados_escenario"]
+            - comparacion["formatos_recomendados_base"]
+        )
+        comparacion = comparacion.loc[
+            comparacion["ajuste_escenario"].fillna(0) != 0
+        ]
+        comparacion = aplicar_nombres_visibles(
+            comparacion,
+            idioma=_idioma_codigo(),
+        )
+        contexto_escenario = {
+            "configurado": True,
+            "variacion_pct": variacion_escenario,
+            "sucursal": (
+                "TODAS"
+                if sucursales_objetivo is None
+                else sucursales_objetivo[0]
+            ),
+            "ingrediente_id": (
+                "TODOS"
+                if ingredientes_objetivo is None
+                else ingredientes_objetivo[0]
+            ),
+            "alertas_base": resumen["alertas_total"],
+            "alertas_escenario": escenario.resumen["alertas_total"],
+            "riesgos_quiebre_escenario": faltantes_escenario,
+            "cambios_formatos": comparacion[
+                [
+                    "sucursal",
+                    "ingrediente_id",
+                    "nombre",
+                    "formatos_recomendados_base",
+                    "formatos_recomendados_escenario",
+                    "ajuste_escenario",
+                ]
+            ]
+            .head(20)
+            .where(pd.notna(comparacion.head(20)), None)
+            .to_dict(orient="records"),
+        }
+        if comparacion.empty:
+            st.info(
+                _texto(
+                    "Con este escenario no cambian los formatos recomendados.",
+                    "This scenario does not change the recommended purchase formats.",
+                )
+            )
+        else:
+            tabla_escenario = comparacion[
+                [
+                    "sucursal",
+                    "nombre",
+                    "formatos_recomendados_base",
+                    "formatos_recomendados_escenario",
+                    "ajuste_escenario",
+                ]
+            ].rename(
+                columns={
+                    "sucursal": _texto("Sucursal", "Location"),
+                    "nombre": _texto("Ingrediente", "Ingredient"),
+                    "formatos_recomendados_base": _texto("Base", "Base"),
+                    "formatos_recomendados_escenario": _texto("Escenario", "Scenario"),
+                    "ajuste_escenario": _texto("Cambio", "Change"),
+                }
+            )
+            st.dataframe(tabla_escenario, hide_index=True, width="stretch")
 
     _separador(_texto("Tres prioridades inmediatas", "Three immediate priorities"))
     if alertas.empty:
@@ -1031,7 +1409,7 @@ with pestanas[1]:
         _bandeja_alertas(filtradas)
 
         opciones = {
-            f"{_etiqueta_prioridad(fila['prioridad'])} · {fila['sucursal']} · {fila['nombre']} — {_contenido_alerta(fila)[0]}": (
+            f"{_etiqueta_prioridad(fila['prioridad'])} · {fila['sucursal']} · {_nombre_visible(fila['ingrediente_id'], fila['nombre'])} — {_contenido_alerta(fila)[0]}": (
                 str(fila["sucursal"]),
                 str(fila["ingrediente_id"]),
             )
@@ -1064,7 +1442,7 @@ with pestanas[1]:
             f"""
             <div class="bp-case-banner">
               <span class="bp-priority bp-priority--{tono_caso}">{_seguro(prioridad_caso)}</span>
-              <div class="bp-case-title" role="heading" aria-level="3">{_seguro(caso['nombre'])} · {_seguro(caso['sucursal'])}</div>
+              <div class="bp-case-title" role="heading" aria-level="3">{_seguro(_nombre_visible(caso['ingrediente_id'], caso['nombre']))} · {_seguro(caso['sucursal'])}</div>
               <strong>{_seguro(estado_caso)} — {_seguro(titulo_caso)}</strong>
               <p>{_seguro(mensaje_caso)}</p>
               <div class="bp-case-action">{_texto('Acción recomendada', 'Recommended action')}: {_seguro(accion_caso)}</div>
@@ -1192,7 +1570,314 @@ with pestanas[1]:
 
 with pestanas[2]:
     _titulo_seccion(
-        _texto("03 · Resolver", "03 · Resolve"),
+        _texto("03 · Aprobar", "03 · Approve"),
+        _texto("Centro de aprobación", "Approval center"),
+        _texto(
+            "Convierte cada alerta en una decisión explícita, conserva el motivo y prepara una orden final con evidencia humana.",
+            "Turn every alert into an explicit decision, preserve the reason and prepare a final order with human evidence.",
+        ),
+    )
+    st.caption(
+        _texto(
+            "La confianza es una categoría operativa basada en seis semanas, atípicos y WAPE retrospectivo; no representa una probabilidad de acierto.",
+            "Confidence is an operational category based on six weeks, outliers and backtest WAPE; it is not a probability of success.",
+        )
+    )
+
+    metricas_aprobacion = st.columns(3)
+    with metricas_aprobacion[0]:
+        _tarjeta_metrica(
+            _texto("Decisiones revisadas", "Reviewed decisions"),
+            f"{estado_aprobacion['revisadas']} / {estado_aprobacion['total']}",
+            _texto("casos documentados", "documented cases"),
+            "brand",
+        )
+    with metricas_aprobacion[1]:
+        _tarjeta_metrica(
+            _texto("Pendientes", "Pending"),
+            estado_aprobacion["pendientes"],
+            _texto("requieren decisión", "need a decision"),
+            "high" if estado_aprobacion["pendientes"] else "good",
+        )
+    with metricas_aprobacion[2]:
+        estado_cierre = (
+            _texto("Lista", "Ready")
+            if estado_aprobacion["lista_para_aprobar"]
+            else _texto("En revisión", "In review")
+        )
+        _tarjeta_metrica(
+            _texto("Orden final", "Final order"),
+            estado_cierre,
+            _texto("control humano", "human control"),
+            "good" if estado_aprobacion["lista_para_aprobar"] else "medium",
+            compacto=True,
+        )
+
+    st.progress(
+        float(estado_aprobacion["progreso"]),
+        text=_texto(
+            f"Revisión semanal: {estado_aprobacion['revisadas']} de {estado_aprobacion['total']} decisiones completadas",
+            f"Weekly review: {estado_aprobacion['revisadas']} of {estado_aprobacion['total']} decisions completed",
+        ),
+    )
+
+    herramientas_aprobacion = st.columns([1.1, 1])
+    responsable_revision = herramientas_aprobacion[0].text_input(
+        _texto("Responsable de la revisión", "Review owner"),
+        placeholder=_texto("Nombre o iniciales", "Name or initials"),
+        help=_texto(
+            "Identificación declarada para la bitácora; no sustituye una firma autenticada.",
+            "Declared identity for the log; it does not replace an authenticated signature.",
+        ),
+        key="responsable_revision",
+    )
+    casos_alta_pendientes = casos_aprobacion.loc[
+        (casos_aprobacion["confianza_operativa"] == CONFIANZA_ALTA)
+        & (~casos_aprobacion["caso_id"].isin(decisiones_aprobacion))
+    ]
+    with herramientas_aprobacion[1]:
+        st.write("")
+        if st.button(
+            _texto(
+                f"Aplicar recomendaciones de alta confianza ({len(casos_alta_pendientes)})",
+                f"Apply high-confidence recommendations ({len(casos_alta_pendientes)})",
+            ),
+            type="primary",
+            width="stretch",
+            disabled=casos_alta_pendientes.empty,
+            key="aplicar_alta_confianza",
+            help=_texto(
+                "No incluye productos desconocidos ni sobrescribe decisiones existentes.",
+                "It excludes unknown products and never overwrites existing decisions.",
+            ),
+        ):
+            st.session_state.revision_aprobacion["decisiones"] = (
+                aplicar_recomendaciones_alta_confianza(
+                    casos_aprobacion,
+                    decisiones_aprobacion,
+                    responsable=responsable_revision,
+                )
+            )
+            st.rerun()
+
+    if estado_aprobacion["devueltas"]:
+        st.warning(
+            _texto(
+                "Hay casos devueltos a una sucursal. La orden final seguirá bloqueada hasta reabrirlos y registrar una decisión con cantidad.",
+                "Some cases were returned to a location. The final order remains blocked until they are reopened and a quantity decision is recorded.",
+            )
+        )
+    elif estado_aprobacion["lista_con_excepciones"]:
+        st.success(
+            _texto(
+                f"Revisión completada con {estado_aprobacion['excepciones_catalogo']} excepción de catálogo documentada. La excepción queda fuera de la orden a proveedores.",
+                f"Review completed with {estado_aprobacion['excepciones_catalogo']} documented catalog exception. The exception stays out of supplier orders.",
+            )
+        )
+    elif estado_aprobacion["lista_para_aprobar"]:
+        st.success(
+            _texto(
+                "Revisión completada. La orden aprobada y la bitácora están listas para descargar.",
+                "Review complete. The approved order and decision log are ready to download.",
+            )
+        )
+    else:
+        st.info(
+            _texto(
+                "Revisa los pendientes o aplica en bloque únicamente las recomendaciones de alta confianza.",
+                "Review pending cases or batch-apply only high-confidence recommendations.",
+            )
+        )
+
+    _separador(_texto("Expedientes de decisión", "Decision case files"))
+    etiquetas_decision = (
+        DECISION_ETIQUETAS_EN if _en_ingles() else DECISION_ETIQUETAS_ES
+    )
+    motivos = {
+        "RECOMENDACION_SISTEMA": _texto("Recomendación verificada", "Verified recommendation"),
+        "INVENTARIO_EN_TRANSITO": _texto("Inventario en tránsito", "Inventory in transit"),
+        "PROMOCION_CANCELADA": _texto("Promoción o evento cancelado", "Promotion or event cancelled"),
+        "DECISION_GERENCIAL": _texto("Decisión gerencial", "Management decision"),
+        "CORRECCION_CATALOGO": _texto("Corrección de catálogo", "Catalog correction"),
+        "OTRO": _texto("Otro", "Other"),
+    }
+    for indice_caso, (_, caso_aprobacion) in enumerate(
+        casos_aprobacion.iterrows()
+    ):
+        caso_id = str(caso_aprobacion["caso_id"])
+        nombre_caso = _nombre_visible(
+            caso_aprobacion["ingrediente_id"],
+            caso_aprobacion["nombre"],
+        )
+        decision_actual = decisiones_aprobacion.get(caso_id)
+        estado_decision = (
+            etiquetas_decision.get(str(decision_actual["decision"]), str(decision_actual["decision"]))
+            if decision_actual
+            else _texto("Pendiente", "Pending")
+        )
+        with st.expander(
+            f"{_etiqueta_prioridad(caso_aprobacion['prioridad'])} · "
+            f"{caso_aprobacion['sucursal']} · {nombre_caso} · {estado_decision}",
+            expanded=decision_actual is None and indice_caso == 0,
+        ):
+            formato_caso = caso_aprobacion.get("formato_compra")
+            nota_recomendacion = (
+                _texto("Sin recomendación", "No recommendation")
+                if formato_caso is None or pd.isna(formato_caso)
+                else str(formato_caso)
+            )
+            resumen_caso = st.columns(4)
+            with resumen_caso[0]:
+                _tarjeta_metrica(
+                    _texto("Solicitado", "Requested"),
+                    _formatear_numero(caso_aprobacion["cantidad_formatos_solicitados"]),
+                    _texto("formatos", "formats"),
+                )
+            with resumen_caso[1]:
+                _tarjeta_metrica(
+                    _texto("Recomendado", "Recommended"),
+                    _formatear_numero(caso_aprobacion["formatos_recomendados"]),
+                    nota_recomendacion,
+                    "brand",
+                )
+            with resumen_caso[2]:
+                _tarjeta_metrica(
+                    _texto("Confianza", "Confidence"),
+                    _etiqueta_confianza(caso_aprobacion["confianza_operativa"]),
+                    _texto("categoría operativa", "operational category"),
+                    _tono_confianza(caso_aprobacion["confianza_operativa"]),
+                    compacto=True,
+                )
+            with resumen_caso[3]:
+                _tarjeta_metrica(
+                    _texto("Decisión", "Decision"),
+                    estado_decision,
+                    _texto("registro de sesión", "session record"),
+                    "good" if decision_actual else "medium",
+                    compacto=True,
+                )
+            st.caption(str(caso_aprobacion["confianza_motivo"]))
+
+            if decision_actual:
+                detalle_decision = decision_actual.get("motivo_detalle") or decision_actual.get("motivo_codigo")
+                st.markdown(
+                    f"**{_texto('Decisión registrada', 'Recorded decision')}:** "
+                    f"{_seguro(estado_decision)}  \n"
+                    f"**{_texto('Motivo', 'Reason')}:** {_seguro(detalle_decision or '—')}"
+                )
+                if st.button(
+                    _texto("Reabrir decisión", "Reopen decision"),
+                    key=f"reabrir_{caso_id}",
+                ):
+                    del st.session_state.revision_aprobacion["decisiones"][caso_id]
+                    st.rerun()
+            else:
+                permitidas = list(opciones_decision(caso_aprobacion))
+                with st.form(f"form_decision_{caso_id}"):
+                    decision_elegida = st.selectbox(
+                        _texto("Decisión", "Decision"),
+                        permitidas,
+                        format_func=lambda codigo: etiquetas_decision[codigo],
+                    )
+                    motivo_elegido = st.selectbox(
+                        _texto("Motivo", "Reason"),
+                        list(motivos),
+                        index=(
+                            list(motivos).index("CORRECCION_CATALOGO")
+                            if caso_aprobacion["estado"] == "NO_EVALUABLE"
+                            else 0
+                        ),
+                        format_func=lambda codigo: motivos[codigo],
+                    )
+                    motivo_detalle = st.text_area(
+                        _texto("Nota opcional", "Optional note"),
+                        placeholder=_texto(
+                            "Contexto breve para la bitácora",
+                            "Brief context for the decision log",
+                        ),
+                    )
+                    guardar_decision = st.form_submit_button(
+                        _texto("Guardar decisión", "Save decision"),
+                        type="primary",
+                        width="stretch",
+                    )
+                if guardar_decision:
+                    try:
+                        registro_decision = registrar_decision(
+                            caso_aprobacion,
+                            decision_elegida,
+                            motivo_codigo=motivo_elegido,
+                            motivo_detalle=motivo_detalle,
+                            responsable=responsable_revision,
+                        )
+                    except ErrorAprobacion as error:
+                        st.error(str(error))
+                    else:
+                        st.session_state.revision_aprobacion["decisiones"][caso_id] = registro_decision
+                        st.rerun()
+
+    if orden_aprobada is not None:
+        _separador(_texto("Cierre y evidencia", "Closure and evidence"))
+        bitacora = generar_bitacora_decisiones(
+            casos_aprobacion,
+            decisiones_aprobacion,
+            huella_revision=huella_revision,
+            fuente=fuente_texto,
+            idioma=_idioma_codigo(),
+        )
+        descargas_aprobacion = st.columns(2)
+        descargas_aprobacion[0].download_button(
+            _texto("Descargar orden aprobada · CSV", "Download approved order · CSV"),
+            data=dataframe_a_csv_bytes(
+                aplicar_nombres_visibles(
+                    orden_aprobada,
+                    idioma=_idioma_codigo(),
+                )
+            ),
+            file_name="orden_aprobada_barrio_pizza.csv",
+            mime="text/csv",
+            type="primary",
+            width="stretch",
+            key="aprobacion_descargar_orden",
+        )
+        descargas_aprobacion[1].download_button(
+            _texto("Descargar bitácora · CSV", "Download decision log · CSV"),
+            data=dataframe_a_csv_bytes(bitacora),
+            file_name="bitacora_revision_compras.csv",
+            mime="text/csv",
+            width="stretch",
+            key="aprobacion_descargar_bitacora",
+        )
+
+        with st.expander(
+            _texto(
+                "Mensajes preparados para las sucursales",
+                "Messages prepared for locations",
+            )
+        ):
+            sucursales_con_decision = sorted(casos_aprobacion["sucursal"].unique())
+            for sucursal_mensaje in sucursales_con_decision:
+                mensaje_sucursal = generar_mensaje_sucursal(
+                    casos_aprobacion,
+                    decisiones_aprobacion,
+                    sucursal_mensaje,
+                    semana=_contexto_semana(analisis.datos["consumo_historico"]),
+                    idioma=_idioma_codigo(),
+                )
+                st.markdown(f"#### {sucursal_mensaje}")
+                st.code(mensaje_sucursal, language=None)
+                st.download_button(
+                    _texto("Descargar mensaje · TXT", "Download message · TXT"),
+                    data=mensaje_sucursal.encode("utf-8"),
+                    file_name=f"ajustes_{sucursal_mensaje.lower().replace(' ', '_')}.txt",
+                    mime="text/plain",
+                    key=f"mensaje_sucursal_{sucursal_mensaje}",
+                )
+
+
+with pestanas[3]:
+    _titulo_seccion(
+        _texto("04 · Resolver", "04 · Resolve"),
         _texto("Orden corregida por proveedor", "Corrected order by supplier"),
         _texto(
             "Revisa el ajuste final, filtra por proveedor y descarga archivos listos para enviar. La recomendación excluye productos desconocidos y conserva formatos completos.",
@@ -1200,7 +1885,28 @@ with pestanas[2]:
         ),
     )
 
-    proveedores = sorted(analisis.orden_corregida["proveedor"].dropna().unique())
+    es_orden_aprobada = orden_aprobada is not None
+    orden_operativa = (
+        orden_aprobada.copy()
+        if es_orden_aprobada
+        else analisis.orden_corregida.copy()
+    )
+    if es_orden_aprobada:
+        st.success(
+            _texto(
+                "Esta vista refleja las decisiones registradas en el Centro de aprobación.",
+                "This view reflects the decisions recorded in the Approval center.",
+            )
+        )
+    else:
+        st.info(
+            _texto(
+                "Borrador recomendado: completa las decisiones del Centro de aprobación para generar la orden final aprobada.",
+                "Recommended draft: complete the Approval center decisions to generate the final approved order.",
+            )
+        )
+
+    proveedores = sorted(orden_operativa["proveedor"].dropna().unique())
     with st.container(border=True):
         filtro_proveedores = st.multiselect(
             _texto("Filtrar proveedores", "Filter suppliers"),
@@ -1209,7 +1915,7 @@ with pestanas[2]:
             help=_texto("La descarga filtrada respeta esta selección.", "The filtered download follows this selection."),
         )
     orden_filtrada = preparar_orden_por_proveedor(
-        analisis.orden_corregida,
+        orden_operativa,
         proveedores=filtro_proveedores,
     )
 
@@ -1223,11 +1929,25 @@ with pestanas[2]:
 
     _separador(_texto("Vista consolidada", "Consolidated view"))
     columna_original = _texto("Cantidad original", "Original quantity")
-    columna_recomendada = _texto("Cantidad recomendada", "Recommended quantity")
-    columna_ajuste = _texto("Ajuste", "Adjustment")
-    columna_total = _texto("Total recomendado", "Recommended total")
+    columna_recomendada = _texto(
+        "Cantidad aprobada" if es_orden_aprobada else "Cantidad recomendada",
+        "Approved quantity" if es_orden_aprobada else "Recommended quantity",
+    )
+    columna_ajuste = _texto(
+        "Ajuste aprobado" if es_orden_aprobada else "Ajuste",
+        "Approved adjustment" if es_orden_aprobada else "Adjustment",
+    )
+    columna_total = _texto(
+        "Total aprobado" if es_orden_aprobada else "Total recomendado",
+        "Approved total" if es_orden_aprobada else "Recommended total",
+    )
+    tabla_orden_interfaz = (
+        _orden_aprobada_para_interfaz(orden_filtrada)
+        if es_orden_aprobada
+        else _orden_para_interfaz(orden_filtrada)
+    )
     st.dataframe(
-        _orden_para_interfaz(orden_filtrada),
+        tabla_orden_interfaz,
         hide_index=True,
         width="stretch",
         height=480,
@@ -1245,45 +1965,104 @@ with pestanas[2]:
 
     descargas = st.columns(2)
     descarga_completa = descargas[0].download_button(
-        _texto("Descargar orden completa · CSV", "Download full order · CSV"),
-        data=dataframe_a_csv_bytes(analisis.orden_corregida),
-        file_name="orden_corregida_barrio_pizza.csv",
+        _texto(
+            "Descargar orden aprobada · CSV" if es_orden_aprobada else "Descargar borrador completo · CSV",
+            "Download approved order · CSV" if es_orden_aprobada else "Download full draft · CSV",
+        ),
+        data=dataframe_a_csv_bytes(
+            aplicar_nombres_visibles(
+                orden_operativa,
+                idioma=_idioma_codigo(),
+            )
+        ),
+        file_name=(
+            "orden_aprobada_barrio_pizza.csv"
+            if es_orden_aprobada
+            else "orden_recomendada_barrio_pizza.csv"
+        ),
         mime="text/csv",
         width="stretch",
         type="primary",
+        key="orden_descarga_completa",
     )
     descarga_filtrada = descargas[1].download_button(
         _texto("Descargar vista filtrada · CSV", "Download filtered view · CSV"),
-        data=dataframe_a_csv_bytes(orden_filtrada),
-        file_name="orden_corregida_filtrada.csv",
+        data=dataframe_a_csv_bytes(
+            aplicar_nombres_visibles(
+                orden_filtrada,
+                idioma=_idioma_codigo(),
+            )
+        ),
+        file_name=(
+            "orden_aprobada_filtrada.csv"
+            if es_orden_aprobada
+            else "orden_recomendada_filtrada.csv"
+        ),
         mime="text/csv",
         width="stretch",
+        key="orden_descarga_filtrada",
     )
     if descarga_completa or descarga_filtrada:
         st.toast(_texto("Descarga preparada correctamente.", "Download prepared successfully."))
 
-    _separador(_texto("Órdenes separadas, listas para enviar", "Separate orders, ready to send"))
+    _separador(
+        _texto(
+            "Órdenes y mensajes por proveedor",
+            "Orders and messages by supplier",
+        )
+    )
     for proveedor, grupo in orden_filtrada.groupby("proveedor", sort=True):
         with st.expander(f"{proveedor} · {len(grupo)} {_texto('líneas de compra', 'purchase lines')}"):
+            tabla_grupo = (
+                _orden_aprobada_para_interfaz(grupo)
+                if es_orden_aprobada
+                else _orden_para_interfaz(grupo)
+            )
             st.dataframe(
-                _orden_para_interfaz(grupo).drop(columns=_texto("Proveedor", "Supplier")),
+                tabla_grupo.drop(columns=_texto("Proveedor", "Supplier")),
                 hide_index=True,
                 width="stretch",
             )
-            descarga_proveedor = st.download_button(
+            mensaje_proveedor = generar_mensaje_proveedor(
+                grupo,
+                proveedor,
+                semana=_contexto_semana(analisis.datos["consumo_historico"]),
+                idioma=_idioma_codigo(),
+                aprobado=es_orden_aprobada,
+            )
+            st.caption(
+                _texto(
+                    "Texto listo para copiar; el sistema no lo envía automáticamente.",
+                    "Copy-ready text; the system does not send it automatically.",
+                )
+            )
+            st.code(mensaje_proveedor, language=None)
+            descargas_proveedor = st.columns(2)
+            descarga_proveedor = descargas_proveedor[0].download_button(
                 f"{_texto('Descargar CSV', 'Download CSV')} · {proveedor}",
-                data=dataframe_a_csv_bytes(grupo),
+                data=dataframe_a_csv_bytes(
+                    aplicar_nombres_visibles(grupo, idioma=_idioma_codigo())
+                ),
                 file_name=f"orden_{str(proveedor).lower().replace(' ', '_')}.csv",
                 mime="text/csv",
                 key=f"descarga_{proveedor}",
+                width="stretch",
             )
-            if descarga_proveedor:
+            descarga_texto = descargas_proveedor[1].download_button(
+                f"{_texto('Descargar mensaje', 'Download message')} · TXT",
+                data=mensaje_proveedor.encode("utf-8"),
+                file_name=f"mensaje_{str(proveedor).lower().replace(' ', '_')}.txt",
+                mime="text/plain",
+                key=f"mensaje_proveedor_{proveedor}",
+                width="stretch",
+            )
+            if descarga_proveedor or descarga_texto:
                 st.toast(_texto(f"Orden de {proveedor} preparada.", f"{proveedor} order prepared."))
 
 
-with pestanas[3]:
+with pestanas[4]:
     _titulo_seccion(
-        _texto("04 · Verificar", "04 · Verify"),
+        _texto("05 · Verificar", "05 · Verify"),
         _texto("Calidad y trazabilidad", "Quality and traceability"),
         _texto(
             "Distingue problemas de archivo, desempeño del modelo y evidencia de cada proyección.",
@@ -1345,6 +2124,87 @@ with pestanas[3]:
             mime="text/csv",
         )
 
+    with st.expander(
+        _texto(
+            "Reparador guiado · preparar un archivo limpio",
+            "Guided repair · prepare a clean file",
+        )
+    ):
+        st.caption(
+            _texto(
+                "Completa combinaciones omitidas con cero y separa identificadores desconocidos. Nunca corrige nombres ni elimina filas silenciosamente.",
+                "Adds missing combinations with zero and separates unknown identifiers. It never silently renames or deletes rows.",
+            )
+        )
+        plantilla_reparada, filas_revision, reporte_reparacion = preparar_reparacion_orden(
+            analisis.datos["orden_compra_semana"],
+            analisis.datos["consumo_historico"],
+            analisis.datos["ingredientes"],
+        )
+        metricas_reparacion = st.columns(3)
+        with metricas_reparacion[0]:
+            _tarjeta_metrica(
+                _texto("Filas válidas", "Valid rows"),
+                len(plantilla_reparada),
+                _texto("plantilla completa", "complete template"),
+                "good",
+            )
+        with metricas_reparacion[1]:
+            _tarjeta_metrica(
+                _texto("Combinaciones añadidas", "Added combinations"),
+                int(
+                    (
+                        reporte_reparacion["accion"]
+                        == "COMBINACION_AGREGADA_CON_CERO"
+                    ).sum()
+                ),
+                _texto("inician en cero", "start at zero"),
+                "brand",
+            )
+        with metricas_reparacion[2]:
+            _tarjeta_metrica(
+                _texto("Filas separadas", "Separated rows"),
+                len(filas_revision),
+                _texto("requieren revisión", "require review"),
+                "high" if len(filas_revision) else "good",
+            )
+        if not reporte_reparacion.empty:
+            reporte_ui = reporte_reparacion.rename(
+                columns={
+                    "accion": _texto("Acción", "Action"),
+                    "sucursal": _texto("Sucursal", "Location"),
+                    "ingrediente_id": _texto("Identificador", "Identifier"),
+                    "detalle": _texto("Qué hizo el reparador", "What the repair tool did"),
+                }
+            )
+            st.dataframe(reporte_ui, hide_index=True, width="stretch")
+        descargas_reparacion = st.columns(3)
+        descargas_reparacion[0].download_button(
+            _texto("Descargar plantilla limpia", "Download clean template"),
+            data=dataframe_a_csv_bytes(plantilla_reparada),
+            file_name="orden_plantilla_validada.csv",
+            mime="text/csv",
+            width="stretch",
+            key="reparador_descargar_plantilla",
+        )
+        descargas_reparacion[1].download_button(
+            _texto("Descargar filas a revisar", "Download rows to review"),
+            data=dataframe_a_csv_bytes(filas_revision),
+            file_name="orden_filas_por_revisar.csv",
+            mime="text/csv",
+            width="stretch",
+            disabled=filas_revision.empty,
+            key="reparador_descargar_excepciones",
+        )
+        descargas_reparacion[2].download_button(
+            _texto("Descargar registro de cambios", "Download change log"),
+            data=dataframe_a_csv_bytes(reporte_reparacion),
+            file_name="orden_registro_reparacion.csv",
+            mime="text/csv",
+            width="stretch",
+            key="reparador_descargar_registro",
+        )
+
     _separador(_texto("Rendimiento del modelo", "Model performance"))
     wape_mediano = analisis.proyecciones["wape_backtest_pct"].replace([float("inf"), float("-inf")], pd.NA).dropna().median()
     modelo_metricas = st.columns(4)
@@ -1386,7 +2246,6 @@ with pestanas[3]:
     _separador(_texto("Trazabilidad de cada proyección", "Forecast traceability"))
     columnas_modelo_tabla = [
         "sucursal",
-        "ingrediente_id",
         "consumo_proyectado_unidad_base",
         "metodo_proyeccion",
         "cantidad_atipicos",
@@ -1395,14 +2254,22 @@ with pestanas[3]:
         "wape_backtest_pct",
         "explicacion_proyeccion",
     ]
-    tabla_modelos = analisis.proyecciones[columnas_modelo_tabla].copy()
+    catalogo_modelos = aplicar_nombres_visibles(
+        analisis.datos["ingredientes"],
+        idioma=_idioma_codigo(),
+    )[["ingrediente_id", "nombre"]]
+    tabla_modelos = analisis.proyecciones.merge(
+        catalogo_modelos,
+        on="ingrediente_id",
+        how="left",
+    )[["nombre"] + columnas_modelo_tabla].copy()
     tabla_modelos["metodo_proyeccion"] = tabla_modelos[
         "metodo_proyeccion"
     ].map(METODO_ETIQUETAS_EN if _en_ingles() else METODO_ETIQUETAS)
     tabla_modelos = tabla_modelos.rename(
         columns={
             "sucursal": _texto("Sucursal", "Location"),
-            "ingrediente_id": _texto("Ingrediente", "Ingredient"),
+            "nombre": _texto("Ingrediente", "Ingredient"),
             "consumo_proyectado_unidad_base": _texto("Consumo proyectado", "Forecast consumption"),
             "metodo_proyeccion": _texto("Método", "Method"),
             "cantidad_atipicos": _texto("Datos atípicos", "Outliers"),
@@ -1442,6 +2309,37 @@ with pestanas[3]:
         )
 
 
+contexto_operativo_ai = {
+    **contexto_aprobacion,
+    "escenario_activo": contexto_escenario,
+    "reparacion_archivo": {
+        "filas_validas": len(plantilla_reparada),
+        "combinaciones_agregadas_con_cero": int(
+            (
+                reporte_reparacion["accion"]
+                == "COMBINACION_AGREGADA_CON_CERO"
+            ).sum()
+        ),
+        "filas_separadas_para_revision": len(filas_revision),
+    },
+    "comunicaciones": {
+        "estado": "APROBADA" if orden_aprobada is not None else "BORRADOR",
+        "proveedores_con_mensaje": int(orden_operativa["proveedor"].nunique()),
+        "sucursales_con_ajustes": int(casos_aprobacion["sucursal"].nunique()),
+        "mensajes_enviados_automaticamente": False,
+    },
+    "capacidades_dashboard": [
+        "resumen ejecutivo y alertas auditables",
+        "simulador temporal de demanda",
+        "centro de aprobación y bitácora de decisiones",
+        "confianza operativa con supervisión humana",
+        "orden aprobada y mensajes por proveedor y sucursal",
+        "reparador guiado de archivos",
+        "carga, edición, recálculo y descargas",
+    ],
+}
+
+
 def _renderizar_barrio_ai_flotante() -> None:
     if "mensajes_asistente" not in st.session_state:
         st.session_state.mensajes_asistente = []
@@ -1453,8 +2351,8 @@ def _renderizar_barrio_ai_flotante() -> None:
         else _texto("Modo local verificado", "Verified local mode")
     )
     descripcion_asistente = _texto(
-        "Pregunta desde cualquier vista. Barrio AI usa la orden activa y los resultados calculados de este tablero.",
-        "Ask from any view. Barrio AI uses the active order and the calculated results in this dashboard.",
+        "Pregunta desde cualquier vista. Barrio AI conoce la orden activa, los escenarios y las decisiones de esta revisión.",
+        "Ask from any view. Barrio AI knows the active order, scenarios and decisions in this review.",
     )
 
     with st.container(key="barrio_ai_floating"):
@@ -1500,16 +2398,16 @@ def _renderizar_barrio_ai_flotante() -> None:
             sugerencias = (
                 [
                     "What should I review first?",
-                    "How much flour should Costa del Este buy?",
-                    "What is being overordered?",
-                    "Who supplies mozzarella?",
+                    "How many decisions are left?",
+                    "What requires human review?",
+                    "Is the order ready to approve?",
                 ]
                 if _en_ingles()
                 else [
                     "¿Qué debo revisar primero?",
-                    "¿Cuánta harina debe comprar Costa del Este?",
-                    "¿Qué están pidiendo de más?",
-                    "¿Quién provee la mozzarella?",
+                    "¿Cuántas decisiones faltan?",
+                    "¿Qué requiere revisión humana?",
+                    "¿La orden está lista para aprobar?",
                 ]
             )
             st.caption(_texto("Prueba una pregunta", "Try a question"))
@@ -1527,8 +2425,8 @@ def _renderizar_barrio_ai_flotante() -> None:
                 if not st.session_state.mensajes_asistente:
                     st.markdown(
                         _texto(
-                            "**Hola, soy Barrio AI.** Puedo explicar prioridades, cantidades recomendadas, inventario, proyecciones y proveedores.",
-                            "**Hi, I'm Barrio AI.** I can explain priorities, recommended quantities, inventory, forecasts and suppliers.",
+                            "**Hola, soy Barrio AI.** Puedo explicar prioridades, confianza, decisiones, escenarios, cantidades y proveedores.",
+                            "**Hi, I'm Barrio AI.** I can explain priorities, confidence, decisions, scenarios, quantities and suppliers.",
                         )
                     )
                     st.caption(
@@ -1581,6 +2479,7 @@ def _renderizar_barrio_ai_flotante() -> None:
                         generador_llm=generador_ia,
                         historial=historial,
                         idioma=st.session_state.idioma_ui.lower(),
+                        contexto_operativo=contexto_operativo_ai,
                     )
                 st.session_state.mensajes_asistente.append(
                     {
