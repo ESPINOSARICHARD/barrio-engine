@@ -10,6 +10,7 @@ from src.dashboard import (
     filtrar_resultados,
     porcentaje_orden_correcta,
     preparar_orden_por_proveedor,
+    preparar_reparacion_orden,
     preparar_serie_detalle,
 )
 
@@ -109,3 +110,43 @@ def test_csv_de_descarga_incluye_bom_para_excel() -> None:
 def test_porcentaje_correcto_del_reto() -> None:
     analisis = _analisis_real()
     assert porcentaje_orden_correcta(analisis.resumen) == 94.3
+
+
+def test_editar_mozzarella_recalcula_y_elimina_una_alerta() -> None:
+    datos = cargar_datos()
+    orden = completar_orden_para_editor(
+        datos["orden_compra_semana"],
+        datos["consumo_historico"],
+        datos["ingredientes"],
+    )
+    mascara = (
+        (orden["sucursal"] == "Brisas del Golf")
+        & (orden["ingrediente_id"] == "mozzarella")
+    )
+    orden.loc[mascara, "cantidad_formatos"] = 18
+
+    analisis = construir_analisis(datos, orden_compra=orden)
+
+    assert analisis.resumen["alertas_total"] == 5
+    mozzarella = analisis.resultados.loc[mascara].iloc[0]
+    assert mozzarella["estado"] == "CORRECTO"
+
+
+def test_reparador_completa_mozzarella_y_separa_aji_chombo() -> None:
+    datos = cargar_datos()
+    plantilla, excepciones, reporte = preparar_reparacion_orden(
+        datos["orden_compra_semana"],
+        datos["consumo_historico"],
+        datos["ingredientes"],
+    )
+
+    assert len(plantilla) == 88
+    mozzarella = plantilla.query(
+        "sucursal == 'Brisas del Golf' and ingrediente_id == 'mozzarella'"
+    ).iloc[0]
+    assert mozzarella["cantidad_formatos"] == 0
+    assert excepciones["ingrediente_id"].tolist() == ["aji_chombo"]
+    assert set(reporte["accion"]) == {
+        "COMBINACION_AGREGADA_CON_CERO",
+        "FILA_SEPARADA_PARA_REVISION",
+    }
