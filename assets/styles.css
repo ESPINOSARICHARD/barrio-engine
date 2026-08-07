@@ -765,6 +765,20 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
   color: #fff !important;
 }
 
+[data-testid="stFormSubmitButton"] button[kind="primary"],
+[data-testid="stFormSubmitButton"] button[data-testid="stBaseButton-primary"],
+button[data-testid="stBaseButton-primaryFormSubmit"],
+button[data-testid="stBaseButton-primary"] {
+  color: #fff !important;
+}
+
+[data-testid="stFormSubmitButton"] button[kind="primary"] *,
+[data-testid="stFormSubmitButton"] button[data-testid="stBaseButton-primary"] *,
+button[data-testid="stBaseButton-primaryFormSubmit"] *,
+button[data-testid="stBaseButton-primary"] * {
+  color: #fff !important;
+}
+
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,

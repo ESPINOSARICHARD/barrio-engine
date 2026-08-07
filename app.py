@@ -422,7 +422,7 @@ def _encabezado_producto(
             <img class="bp-header-logo" src="{logo}" alt="Barrio Pizza">
             <div>
               <div class="bp-wordmark">{_texto('Panamá · Desde 2015', 'Panama · Since 2015')}</div>
-              <h1>BARRIO <span>ENGINE</span></h1>
+              <h1>ENGINE</h1>
               <p>{_texto('Centro de decisiones operativas', 'Operational decision center')}</p>
             </div>
           </div>
