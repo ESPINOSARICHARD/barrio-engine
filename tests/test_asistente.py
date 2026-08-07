@@ -103,14 +103,37 @@ def test_falla_del_llm_activa_respuesta_local() -> None:
         raise RuntimeError("servicio no disponible")
 
     respuesta = responder_asistente(
-        "¿Cuántas alertas hay?",
+        "¿Cuánta harina debe comprar Costa del Este?",
         _analisis_real(),
         generador_llm=generador,
     )
 
     assert respuesta.modo == "local"
-    assert "6 alertas" in respuesta.respuesta
+    assert "13 sacos" in respuesta.respuesta
     assert respuesta.advertencia is not None
+
+
+def test_llm_no_puede_alterar_conteos_verificados() -> None:
+    invocado = False
+
+    def generador(_instruccion: str, _contenido: str) -> str:
+        nonlocal invocado
+        invocado = True
+        return "Hay 6 alertas: 1 crítica, 4 altas y 1 media."
+
+    respuesta = responder_asistente(
+        "¿Cuántas alertas existen y cuál debo revisar primero?",
+        _analisis_real(),
+        generador_llm=generador,
+    )
+
+    assert respuesta.modo == "verificado"
+    assert invocado is False
+    assert "2 críticas" in respuesta.respuesta
+    assert "3 altas" in respuesta.respuesta
+    assert "Brisas del Golf" in respuesta.respuesta
+    assert "Mozzarella" in respuesta.respuesta
+    assert "1 crítica" not in respuesta.respuesta
 
 
 def test_pregunta_fuera_de_alcance_explica_capacidades() -> None:
@@ -139,10 +162,10 @@ def test_capa_llm_recibe_instruccion_en_ingles() -> None:
     def generador(instruccion: str, contenido: str) -> str:
         capturado["instruccion"] = instruccion
         capturado["contenido"] = contenido
-        return "There are 6 alerts to review."
+        return "Costa del Este should buy 13 sacks of flour."
 
     respuesta = responder_asistente(
-        "How many alerts are there?",
+        "How much flour should Costa del Este buy?",
         _analisis_real(),
         generador_llm=generador,
         idioma="en",
@@ -150,7 +173,7 @@ def test_capa_llm_recibe_instruccion_en_ingles() -> None:
 
     assert respuesta.modo == "gemini"
     assert "Answer in clear" in capturado["instruccion"]
-    assert "6 alerts" in capturado["contenido"]
+    assert '"alertas_total": 6' in capturado["contenido"]
 
 
 def test_respuesta_visible_usa_pina_con_enie_sin_cambiar_id() -> None:
@@ -189,10 +212,10 @@ def test_contexto_operativo_llega_a_la_capa_llm() -> None:
     def generador(instruccion: str, contenido: str) -> str:
         capturado["instruccion"] = instruccion
         capturado["contenido"] = contenido
-        return "Quedan 6 decisiones."
+        return "Costa del Este debe comprar 13 sacos de harina."
 
     respuesta = responder_asistente(
-        "¿Cuántas decisiones faltan?",
+        "¿Cuánta harina debe comprar Costa del Este?",
         _analisis_real(),
         generador_llm=generador,
         contexto_operativo=_contexto_aprobacion(),
@@ -209,14 +232,14 @@ def test_fallo_externo_conserva_respuesta_local_de_aprobacion() -> None:
         raise RuntimeError("sin servicio")
 
     respuesta = responder_asistente(
-        "¿Cuántas decisiones faltan?",
+        "¿Cuánta harina debe comprar Costa del Este?",
         _analisis_real(),
         generador_llm=generador,
         contexto_operativo=_contexto_aprobacion(),
     )
 
     assert respuesta.modo == "local"
-    assert "6 pendientes" in respuesta.respuesta
+    assert "13 sacos" in respuesta.respuesta
 
 
 def test_barrio_ai_conoce_escenario_y_reparacion_activos() -> None:

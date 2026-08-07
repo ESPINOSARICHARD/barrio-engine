@@ -16,6 +16,25 @@ from src.presentacion import nombre_ingrediente_visible, reemplazar_nombre_visib
 
 MODELO_GEMINI_PREDETERMINADO = "gemini-2.5-flash"
 
+# Estas intenciones ya tienen una respuesta completa construida desde el motor
+# determinista. La IA externa puede procesar la consulta, pero no reescribe la
+# salida final porque podría alterar conteos, prioridades o estados aprobados.
+INTENCIONES_RESPUESTA_VERIFICADA = {
+    "conteo_alertas",
+    "conteo_ingredientes",
+    "conteo_proveedores",
+    "conteo_sucursales",
+    "progreso_aprobacion",
+    "estado_aprobacion",
+    "confianza_recomendacion",
+    "decisiones_revision",
+    "escenario_activo",
+    "estado_reparador",
+    "alertas",
+    "faltantes",
+    "excesos",
+}
+
 
 class ErrorAsistente(Exception):
     """Error controlado al preparar o responder una consulta del asistente."""
@@ -353,15 +372,36 @@ def _respuesta_conteo(
         return f"El catálogo contiene **{cantidad} ingredientes válidos**.", (f"ingredientes={cantidad}",), "conteo_ingredientes"
     if _contiene_alguno(pregunta, ["alerta", "alertas", "problemas"]):
         cantidad = int(resumen["alertas_total"])
-        return (
+        respuesta = (
             f"Hay **{cantidad} alertas por revisar**: {resumen['prioridad_critica']} críticas, "
-            f"{resumen['prioridad_alta']} altas y {resumen['prioridad_media']} de prioridad media.",
-            (
-                f"alertas_total={cantidad}",
-                f"criticas={resumen['prioridad_critica']}",
-                f"altas={resumen['prioridad_alta']}",
-                f"medias={resumen['prioridad_media']}",
-            ),
+            f"{resumen['prioridad_alta']} altas y {resumen['prioridad_media']} de prioridad media."
+        )
+        evidencia = [
+            f"alertas_total={cantidad}",
+            f"criticas={resumen['prioridad_critica']}",
+            f"altas={resumen['prioridad_alta']}",
+            f"medias={resumen['prioridad_media']}",
+        ]
+        if _contiene_alguno(pregunta, ["primero", "prioridad", "revisar"]):
+            alertas = analisis.resultados.loc[
+                analisis.resultados["es_alerta"].fillna(False)
+            ].copy()
+            alertas["_orden_prioridad"] = alertas["prioridad"].map(
+                {"CRITICA": 0, "ALTA": 1, "MEDIA": 2}
+            ).fillna(99)
+            primera = alertas.sort_values(
+                ["_orden_prioridad", "sucursal", "nombre"], kind="stable"
+            ).iloc[0]
+            respuesta += (
+                f"\n\nRevisa primero **{primera['sucursal']} · {primera['nombre']}**: "
+                f"{primera['accion_recomendada']}"
+            )
+            evidencia.append(
+                f"primera_alerta={primera['sucursal']}|{primera['ingrediente_id']}|{primera['prioridad']}"
+            )
+        return (
+            respuesta,
+            tuple(evidencia),
             "conteo_alertas",
         )
     return "", (), ""
@@ -1110,6 +1150,14 @@ def responder_asistente(
     )
     if generador_llm is None:
         return base
+
+    if base.intencion in INTENCIONES_RESPUESTA_VERIFICADA:
+        return RespuestaAsistente(
+            respuesta=base.respuesta,
+            modo="verificado",
+            intencion=base.intencion,
+            evidencia=base.evidencia,
+        )
 
     if es_ingles:
         instruccion = (

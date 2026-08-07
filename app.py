@@ -2082,6 +2082,10 @@ with pestanas[4]:
         _tarjeta_metrica(_texto("Errores", "Errors"), cantidad_errores, _texto("requieren corrección", "require correction"), "high" if cantidad_errores else "good")
     with columnas_calidad[2]:
         _tarjeta_metrica(_texto("Bloqueantes", "Blocking"), cantidad_bloqueantes, _texto("detienen el análisis", "stop the analysis"), "critical" if cantidad_bloqueantes else "good")
+    st.markdown(
+        '<div class="bp-metric-row-gap" aria-hidden="true"></div>',
+        unsafe_allow_html=True,
+    )
 
     if hallazgos.empty:
         st.success(_texto("No se encontraron problemas de calidad de datos.", "No data-quality issues were found."))
@@ -2439,10 +2443,16 @@ def _renderizar_barrio_ai_flotante() -> None:
                     with st.chat_message(mensaje["role"]):
                         st.markdown(mensaje["content"])
                         if mensaje["role"] == "assistant" and mensaje.get("modo"):
+                            etiquetas_modo = {
+                                "gemini": _texto("IA + cálculo verificado", "AI + verified calculation"),
+                                "verificado": _texto("Cálculo verificado", "Verified calculation"),
+                                "local": _texto("Cálculo local verificado", "Verified local calculation"),
+                            }
                             st.caption(
-                                _texto("IA + cálculo verificado", "AI + verified calculation")
-                                if mensaje.get("modo") == "gemini"
-                                else _texto("Cálculo local verificado", "Verified local calculation")
+                                etiquetas_modo.get(
+                                    mensaje.get("modo"),
+                                    _texto("Cálculo verificado", "Verified calculation"),
+                                )
                             )
                         if mensaje.get("advertencia"):
                             st.warning(
