@@ -59,7 +59,7 @@ El dashboard no se limita a señalar que una orden está mal. Permite comprender
 
 ### Resumen ejecutivo
 
-![Resumen ejecutivo](docs/images/Resumen ejecutivo.png)
+![Resumen ejecutivo](docs/images/resumenejecutivo.png)
 
 ### Centro de aprobación
 
