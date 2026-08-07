@@ -1,7 +1,7 @@
 # BARRIO PIZZA — Inteligencia de Compras
 
 <p align="center">
-  <img src="assets/barrio-wordmark.png" alt="Barrio Pizza" width="230">
+  <img src="assets/logo de barrio para github.png" alt="Barrio Pizza" width="230">
 </p>
 
 <p align="center">
