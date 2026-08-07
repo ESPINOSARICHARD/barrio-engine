@@ -15,7 +15,7 @@
   <img alt="Idiomas" src="https://img.shields.io/badge/UI-ES%20%7C%20EN-6B6B66">
 </p>
 
-> **Estado:** prototipo funcional validado localmente. El enlace público se añadirá después del despliegue final en Streamlit Community Cloud.
+> **Repositorio público:** [ESPINOSARICHARD/barrio-pizza-compras-inteligentes](https://github.com/ESPINOSARICHARD/barrio-pizza-compras-inteligentes). El enlace de la aplicación se añadirá después del despliegue final en Streamlit Community Cloud.
 
 ## El problema que resuelve
 
@@ -317,7 +317,7 @@ Los módulos matemáticos están separados de Streamlit. Esto permite probar el 
 ### Windows PowerShell
 
 ```powershell
-git clone <URL_DEL_REPOSITORIO>
+git clone https://github.com/ESPINOSARICHARD/barrio-pizza-compras-inteligentes.git
 cd barrio-pizza-compras-inteligentes
 python -m venv .venv
 .venv\Scripts\Activate.ps1
@@ -329,7 +329,7 @@ streamlit run app.py
 ### macOS o Linux
 
 ```bash
-git clone <URL_DEL_REPOSITORIO>
+git clone https://github.com/ESPINOSARICHARD/barrio-pizza-compras-inteligentes.git
 cd barrio-pizza-compras-inteligentes
 python3.12 -m venv .venv
 source .venv/bin/activate
