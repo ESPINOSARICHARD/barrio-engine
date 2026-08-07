@@ -50,6 +50,9 @@ El dashboard no se limita a señalar que una orden está mal. Permite comprender
 - **Cierre operativo:** genera la orden aprobada, la bitácora y mensajes listos para proveedores y sucursales.
 - **IA fundamentada:** Barrio AI explica resultados ya calculados; no inventa cantidades ni sustituye el motor de compras.
 
+## Uso de IA
+- [Explicación completa del uso de IA](docs/uso-de-ia.md)
+
 ## Demostración visual
 
 ### Resumen ejecutivo
@@ -435,11 +438,6 @@ La IA se utilizó como herramienta de ingeniería para interpretar el problema, 
 Las decisiones no se aceptaron automáticamente. Se validaron mediante reglas explícitas, resultados esperados, 62 pruebas, revisión visual en navegador y control de versiones. La responsabilidad de definir, ejecutar, comparar y aprobar cada decisión permaneció en la desarrolladora.
 
 La explicación completa está en [docs/uso-de-ia.md](docs/uso-de-ia.md).
-
-## Material para la entrega
-
-- [Guion del video de 3–5 minutos](docs/guion-video.md)
-- [Explicación completa del uso de IA](docs/uso-de-ia.md)
 
 ## Criterio de producto
 
