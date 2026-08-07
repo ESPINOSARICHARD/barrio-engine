@@ -1,11 +1,11 @@
-# BARRIO PIZZA — Inteligencia de Compras
+# BARRIO PIZZA — BARRIO ENGINE
 
 <p align="center">
   <img src="assets/logo de barrio para github.png" alt="Barrio Pizza" width="230">
 </p>
 
 <p align="center">
-  Centro de control semanal para detectar riesgos, corregir cantidades y preparar compras por proveedor.
+  Centro de decisiones operativas.
 </p>
 
 <p align="center">

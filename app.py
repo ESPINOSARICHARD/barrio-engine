@@ -137,7 +137,7 @@ FORMATO_INGLES = {
 
 
 st.set_page_config(
-    page_title="Barrio Pizza · Inteligencia de Compras",
+    page_title="Barrio Pizza · BARRIO ENGINE",
     page_icon="🍕",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -422,8 +422,8 @@ def _encabezado_producto(
             <img class="bp-header-logo" src="{logo}" alt="Barrio Pizza">
             <div>
               <div class="bp-wordmark">{_texto('Panamá · Desde 2015', 'Panama · Since 2015')}</div>
-              <h1>{_texto('Inteligencia', 'Purchasing')} <span>{_texto('de compras', 'intelligence')}</span></h1>
-              <p>{_texto('Centro de control semanal para detectar riesgos, corregir cantidades y preparar compras por proveedor.', 'Weekly control center to detect risks, correct quantities and prepare supplier-ready orders.')}</p>
+              <h1>BARRIO <span>ENGINE</span></h1>
+              <p>{_texto('Centro de decisiones operativas', 'Operational decision center')}</p>
             </div>
           </div>
           <div class="bp-status-grid" aria-label="{_texto('Estado de la operación', 'Operation status')}">
@@ -807,7 +807,7 @@ except ErrorCargaDatos as error:
 
 
 with st.sidebar:
-    logo_sidebar = _imagen_data_uri(RAIZ / "assets" / "barrio-wordmark.png")
+    logo_sidebar = _imagen_data_uri(RAIZ / "assets" / "barrio-logo-sidebar.png")
     st.markdown(
         f"""
         <div class="bp-side-brand">
