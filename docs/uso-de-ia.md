@@ -71,7 +71,6 @@ El asistente tiene contexto sobre alertas, cantidades, inventario, proveedores, 
 - elegir qué propuestas añadían valor real;
 - aprobar cambios de código y diseño;
 - revisar resultados, capturas y comportamiento;
-- conservar secretos fuera del repositorio;
 - decidir cuándo una recomendación requería supervisión humana.
 
 ## Cómo validé el trabajo asistido por IA
