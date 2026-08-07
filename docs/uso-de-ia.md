@@ -1,6 +1,6 @@
 # Cómo utilicé inteligencia artificial
 
-## Respuesta breve para el formulario
+## Resumen
 
 Utilicé IA como copiloto de ingeniería y producto, no como sustituto del razonamiento ni como fuente de los cálculos. Me ayudó a interpretar el problema de negocio, comparar métodos de proyección, diseñar una arquitectura modular, detectar casos límite, proponer pruebas, depurar errores, revisar la experiencia de usuario y documentar la solución. Cada recomendación fue contrastada con las reglas del reto, los datos originales, pruebas automatizadas y revisión visual en navegador. Las cantidades finales provienen de un motor determinista y auditable; el asistente de la aplicación solo explica resultados ya calculados y utiliza un respaldo local si el servicio externo no está disponible.
 
