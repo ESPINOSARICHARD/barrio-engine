@@ -50,7 +50,7 @@ from src.dashboard import (
     ErrorDashboard,
     completar_orden_para_editor,
     construir_analisis,
-    dataframe_a_csv_bytes,
+    dataframe_a_excel_bytes,
     filtrar_resultados,
     limpiar_infinito,
     leer_orden_csv,
@@ -1827,24 +1827,28 @@ with pestanas[2]:
         )
         descargas_aprobacion = st.columns(2)
         descargas_aprobacion[0].download_button(
-            _texto("Descargar orden aprobada · CSV", "Download approved order · CSV"),
-            data=dataframe_a_csv_bytes(
+            _texto("Descargar orden aprobada · Excel", "Download approved order · Excel"),
+            data=dataframe_a_excel_bytes(
                 aplicar_nombres_visibles(
                     orden_aprobada,
                     idioma=_idioma_codigo(),
-                )
+                ),
+                nombre_hoja=_texto("Orden aprobada", "Approved order"),
             ),
-            file_name="orden_aprobada_barrio_pizza.csv",
-            mime="text/csv",
+            file_name="orden_aprobada_barrio_pizza.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             type="primary",
             width="stretch",
             key="aprobacion_descargar_orden",
         )
         descargas_aprobacion[1].download_button(
-            _texto("Descargar bitácora · CSV", "Download decision log · CSV"),
-            data=dataframe_a_csv_bytes(bitacora),
-            file_name="bitacora_revision_compras.csv",
-            mime="text/csv",
+            _texto("Descargar bitácora · Excel", "Download decision log · Excel"),
+            data=dataframe_a_excel_bytes(
+                bitacora,
+                nombre_hoja=_texto("Bitácora", "Decision log"),
+            ),
+            file_name="bitacora_revision_compras.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             width="stretch",
             key="aprobacion_descargar_bitacora",
         )
@@ -1966,39 +1970,41 @@ with pestanas[3]:
     descargas = st.columns(2)
     descarga_completa = descargas[0].download_button(
         _texto(
-            "Descargar orden aprobada · CSV" if es_orden_aprobada else "Descargar borrador completo · CSV",
-            "Download approved order · CSV" if es_orden_aprobada else "Download full draft · CSV",
+            "Descargar orden aprobada · Excel" if es_orden_aprobada else "Descargar borrador completo · Excel",
+            "Download approved order · Excel" if es_orden_aprobada else "Download full draft · Excel",
         ),
-        data=dataframe_a_csv_bytes(
+        data=dataframe_a_excel_bytes(
             aplicar_nombres_visibles(
                 orden_operativa,
                 idioma=_idioma_codigo(),
-            )
+            ),
+            nombre_hoja=_texto("Orden de compra", "Purchase order"),
         ),
         file_name=(
-            "orden_aprobada_barrio_pizza.csv"
+            "orden_aprobada_barrio_pizza.xlsx"
             if es_orden_aprobada
-            else "orden_recomendada_barrio_pizza.csv"
+            else "orden_recomendada_barrio_pizza.xlsx"
         ),
-        mime="text/csv",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         width="stretch",
         type="primary",
         key="orden_descarga_completa",
     )
     descarga_filtrada = descargas[1].download_button(
-        _texto("Descargar vista filtrada · CSV", "Download filtered view · CSV"),
-        data=dataframe_a_csv_bytes(
+        _texto("Descargar vista filtrada · Excel", "Download filtered view · Excel"),
+        data=dataframe_a_excel_bytes(
             aplicar_nombres_visibles(
                 orden_filtrada,
                 idioma=_idioma_codigo(),
-            )
+            ),
+            nombre_hoja=_texto("Vista filtrada", "Filtered view"),
         ),
         file_name=(
-            "orden_aprobada_filtrada.csv"
+            "orden_aprobada_filtrada.xlsx"
             if es_orden_aprobada
-            else "orden_recomendada_filtrada.csv"
+            else "orden_recomendada_filtrada.xlsx"
         ),
-        mime="text/csv",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         width="stretch",
         key="orden_descarga_filtrada",
     )
@@ -2039,12 +2045,13 @@ with pestanas[3]:
             st.code(mensaje_proveedor, language=None)
             descargas_proveedor = st.columns(2)
             descarga_proveedor = descargas_proveedor[0].download_button(
-                f"{_texto('Descargar CSV', 'Download CSV')} · {proveedor}",
-                data=dataframe_a_csv_bytes(
-                    aplicar_nombres_visibles(grupo, idioma=_idioma_codigo())
+                f"{_texto('Descargar Excel', 'Download Excel')} · {proveedor}",
+                data=dataframe_a_excel_bytes(
+                    aplicar_nombres_visibles(grupo, idioma=_idioma_codigo()),
+                    nombre_hoja=_texto("Orden proveedor", "Supplier order"),
                 ),
-                file_name=f"orden_{str(proveedor).lower().replace(' ', '_')}.csv",
-                mime="text/csv",
+                file_name=f"orden_{str(proveedor).lower().replace(' ', '_')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key=f"descarga_{proveedor}",
                 width="stretch",
             )
@@ -2122,10 +2129,13 @@ with pestanas[4]:
             width="stretch",
         )
         st.download_button(
-            _texto("Descargar reporte de calidad · CSV", "Download quality report · CSV"),
-            data=dataframe_a_csv_bytes(hallazgos),
-            file_name="reporte_calidad_datos.csv",
-            mime="text/csv",
+            _texto("Descargar reporte de calidad · Excel", "Download quality report · Excel"),
+            data=dataframe_a_excel_bytes(
+                hallazgos,
+                nombre_hoja=_texto("Calidad de datos", "Data quality"),
+            ),
+            file_name="reporte_calidad_datos.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
     with st.expander(
@@ -2184,27 +2194,36 @@ with pestanas[4]:
             st.dataframe(reporte_ui, hide_index=True, width="stretch")
         descargas_reparacion = st.columns(3)
         descargas_reparacion[0].download_button(
-            _texto("Descargar plantilla limpia", "Download clean template"),
-            data=dataframe_a_csv_bytes(plantilla_reparada),
-            file_name="orden_plantilla_validada.csv",
-            mime="text/csv",
+            _texto("Descargar plantilla limpia · Excel", "Download clean template · Excel"),
+            data=dataframe_a_excel_bytes(
+                plantilla_reparada,
+                nombre_hoja=_texto("Plantilla validada", "Validated template"),
+            ),
+            file_name="orden_plantilla_validada.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             width="stretch",
             key="reparador_descargar_plantilla",
         )
         descargas_reparacion[1].download_button(
-            _texto("Descargar filas a revisar", "Download rows to review"),
-            data=dataframe_a_csv_bytes(filas_revision),
-            file_name="orden_filas_por_revisar.csv",
-            mime="text/csv",
+            _texto("Descargar filas a revisar · Excel", "Download rows to review · Excel"),
+            data=dataframe_a_excel_bytes(
+                filas_revision,
+                nombre_hoja=_texto("Filas a revisar", "Rows to review"),
+            ),
+            file_name="orden_filas_por_revisar.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             width="stretch",
             disabled=filas_revision.empty,
             key="reparador_descargar_excepciones",
         )
         descargas_reparacion[2].download_button(
-            _texto("Descargar registro de cambios", "Download change log"),
-            data=dataframe_a_csv_bytes(reporte_reparacion),
-            file_name="orden_registro_reparacion.csv",
-            mime="text/csv",
+            _texto("Descargar registro de cambios · Excel", "Download change log · Excel"),
+            data=dataframe_a_excel_bytes(
+                reporte_reparacion,
+                nombre_hoja=_texto("Registro de cambios", "Change log"),
+            ),
+            file_name="orden_registro_reparacion.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             width="stretch",
             key="reparador_descargar_registro",
         )

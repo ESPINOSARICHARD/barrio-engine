@@ -999,8 +999,22 @@ textarea:focus-visible,
 
 [data-testid="stPopoverBody"] [data-testid="stChatInput"] textarea {
   min-height: 46px;
+  background: transparent;
+  border: 0;
+}
+
+[data-testid="stPopoverBody"] [data-testid="stChatInput"] {
+  overflow: hidden;
   background: #fff;
-  border-color: var(--bp-border-strong);
+  border: 2px solid var(--bp-border-strong);
+  border-radius: var(--bp-radius-sm);
+  box-shadow: 0 1px 0 rgb(17 17 17 / 5%);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+[data-testid="stPopoverBody"] [data-testid="stChatInput"]:focus-within {
+  border-color: var(--bp-red);
+  box-shadow: 0 0 0 3px rgb(201 37 26 / 16%);
 }
 
 [data-testid="stAlert"] {

@@ -6,7 +6,7 @@ from src.carga_datos import cargar_datos
 from src.dashboard import (
     completar_orden_para_editor,
     construir_analisis,
-    dataframe_a_csv_bytes,
+    dataframe_a_excel_bytes,
     filtrar_resultados,
     porcentaje_orden_correcta,
     preparar_orden_por_proveedor,
@@ -98,13 +98,32 @@ def test_orden_por_proveedor_mantiene_orden_estable() -> None:
     pd.testing.assert_frame_equal(filtrada, esperada)
 
 
-def test_csv_de_descarga_incluye_bom_para_excel() -> None:
-    contenido = dataframe_a_csv_bytes(
-        pd.DataFrame({"nombre": ["Piña", "Mozzarella"]})
+def test_excel_de_descarga_conserva_columnas_tildes_y_filtros() -> None:
+    from io import BytesIO
+    from zipfile import ZipFile
+
+    contenido = dataframe_a_excel_bytes(
+        pd.DataFrame(
+            {
+                "proveedor": ["Deli Gourmet", "Deli Gourmet"],
+                "nombre": ["Piña", "Mozzarella"],
+                "cantidad": [2, 18],
+            }
+        ),
+        nombre_hoja="Orden",
     )
 
-    assert contenido.startswith(b"\xef\xbb\xbf")
-    assert "Piña" in contenido.decode("utf-8-sig")
+    assert contenido.startswith(b"PK")
+    with ZipFile(BytesIO(contenido)) as libro:
+        compartidos = libro.read("xl/sharedStrings.xml").decode("utf-8")
+        hoja = libro.read("xl/worksheets/sheet1.xml").decode("utf-8")
+
+    assert all(
+        texto in compartidos
+        for texto in ["proveedor", "nombre", "cantidad", "Piña", "Mozzarella"]
+    )
+    assert "<autoFilter" in hoja
+    assert 'state="frozen"' in hoja
 
 
 def test_porcentaje_correcto_del_reto() -> None:

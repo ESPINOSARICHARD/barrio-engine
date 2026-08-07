@@ -447,9 +447,89 @@ def preparar_orden_por_proveedor(
     ).reset_index(drop=True)
 
 
-def dataframe_a_csv_bytes(dataframe: pd.DataFrame) -> bytes:
-    """Genera un CSV compatible con Excel conservando tildes."""
-    return dataframe.to_csv(index=False).encode("utf-8-sig")
+def dataframe_a_excel_bytes(
+    dataframe: pd.DataFrame,
+    *,
+    nombre_hoja: str = "Datos",
+) -> bytes:
+    """Genera un libro Excel legible, filtrable y listo para compartir."""
+    salida = BytesIO()
+    hoja = "".join(
+        caracter for caracter in str(nombre_hoja) if caracter not in "[]:*?/\\"
+    ).strip()[:31] or "Datos"
+
+    with pd.ExcelWriter(salida, engine="xlsxwriter") as escritor:
+        exportable = dataframe.replace([np.inf, -np.inf], np.nan)
+        exportable.to_excel(
+            escritor,
+            sheet_name=hoja,
+            index=False,
+            na_rep="",
+        )
+
+        libro = escritor.book
+        hoja_excel = escritor.sheets[hoja]
+        libro.set_properties(
+            {
+                "title": f"Barrio Pizza · {hoja}",
+                "company": "Barrio Pizza",
+                "comments": "Generado por BARRIO ENGINE",
+            }
+        )
+
+        encabezado = libro.add_format(
+            {
+                "bold": True,
+                "font_color": "#FFFFFF",
+                "bg_color": "#111111",
+                "bottom": 2,
+                "bottom_color": "#C9251A",
+                "align": "left",
+                "valign": "vcenter",
+            }
+        )
+        formato_base = {
+            "valign": "vcenter",
+            "border": 1,
+            "border_color": "#DEDEDA",
+        }
+        texto = libro.add_format(formato_base)
+        entero = libro.add_format({**formato_base, "num_format": "#,##0"})
+        decimal = libro.add_format({**formato_base, "num_format": "#,##0.00"})
+        fecha = libro.add_format({**formato_base, "num_format": "yyyy-mm-dd"})
+
+        hoja_excel.freeze_panes(1, 0)
+        hoja_excel.set_tab_color("#C9251A")
+        hoja_excel.set_row(0, 26)
+        hoja_excel.set_default_row(20)
+
+        for indice, columna in enumerate(exportable.columns):
+            hoja_excel.write(0, indice, str(columna), encabezado)
+            valores = exportable[columna].dropna().astype(str).tolist()
+            ancho = min(
+                max([len(str(columna)), *(len(valor) for valor in valores)] or [12]) + 2,
+                42,
+            )
+            ancho = max(ancho, 12)
+
+            nombre_columna = str(columna).lower()
+            if "formatos" in nombre_columna or pd.api.types.is_integer_dtype(
+                exportable[columna]
+            ):
+                formato = entero
+            elif pd.api.types.is_float_dtype(exportable[columna]):
+                formato = decimal
+            elif pd.api.types.is_datetime64_any_dtype(exportable[columna]):
+                formato = fecha
+            else:
+                formato = texto
+            hoja_excel.set_column(indice, indice, ancho, formato)
+
+        if len(exportable.columns) > 0:
+            ultima_fila = max(len(exportable), 1)
+            hoja_excel.autofilter(0, 0, ultima_fila, len(exportable.columns) - 1)
+
+    return salida.getvalue()
 
 
 def porcentaje_orden_correcta(resumen: dict[str, int]) -> float:

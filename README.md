@@ -39,7 +39,7 @@ flowchart LR
     D --> E[Alertas priorizadas]
     E --> F[Revisión humana]
     F --> G[Orden aprobada]
-    G --> H[CSV y mensaje por proveedor]
+    G --> H[Excel y mensaje por proveedor]
 ```
 
 ## Propuesta de valor
@@ -98,7 +98,7 @@ El dashboard no se limita a señalar que una orden está mal. Permite comprender
 - Confianza operativa y aplicación masiva solo para casos de alta confianza.
 - Simulador temporal de variaciones de demanda.
 - Reparador guiado de archivos sin correcciones silenciosas.
-- Orden agrupada por proveedor y mensajes en texto legible.
+- Libros Excel filtrables, ordenados por proveedor y acompañados de mensajes en texto legible.
 - Interfaz completa en español e inglés.
 - Barrio AI disponible desde cualquier vista, con respaldo local.
 
@@ -208,10 +208,10 @@ Cada alerta puede resolverse mediante una de estas decisiones:
 
 Al completar la revisión se generan:
 
-- `orden_aprobada_barrio_pizza.csv`;
-- `bitacora_revision_compras.csv`;
+- `orden_aprobada_barrio_pizza.xlsx`;
+- `bitacora_revision_compras.xlsx`;
 - mensajes TXT por sucursal;
-- CSV y mensaje TXT por proveedor.
+- Excel y mensaje TXT por proveedor.
 
 Los mensajes se preparan para copiar o descargar, pero el prototipo **no afirma que hayan sido enviados**.
 
