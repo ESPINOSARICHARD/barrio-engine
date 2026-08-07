@@ -47,7 +47,7 @@ La IA también se utilizó para revisar jerarquía, lenguaje empresarial, accesi
 
 ### Documentación
 
-Se utilizó para estructurar el README, explicar supuestos, registrar limitaciones y preparar un guion de demostración. El contenido fue contrastado con el código y los resultados reales antes de publicarlo.
+Se utilizó para estructurar el README, explicar supuestos y registrar limitaciones. El contenido fue contrastado con el código y los resultados reales antes de publicarlo.
 
 ## IA dentro de la aplicación
 
