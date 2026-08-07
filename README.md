@@ -15,7 +15,9 @@
   <img alt="Idiomas" src="https://img.shields.io/badge/UI-ES%20%7C%20EN-6B6B66">
 </p>
 
-> **Repositorio público:** [ESPINOSARICHARD/barrio-pizza-compras-inteligentes](https://github.com/ESPINOSARICHARD/barrio-pizza-compras-inteligentes). El enlace de la aplicación se añadirá después del despliegue final en Streamlit Community Cloud.
+> **Aplicación en vivo:** [Abrir BARRIO ENGINE](https://barrio-pizza-compras-inteligentes.streamlit.app/)
+>
+> **Repositorio público:** [ESPINOSARICHARD/barrio-pizza-compras-inteligentes](https://github.com/ESPINOSARICHARD/barrio-pizza-compras-inteligentes)
 
 ## El problema que resuelve
 
