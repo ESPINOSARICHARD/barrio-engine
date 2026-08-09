@@ -60,11 +60,11 @@ El dashboard no se limita a señalar que una orden está mal. Permite comprender
 
 ### Portada de entrada
 
-![Portada de Barrio Engine](docs/images/portada-barrio-engine.png)
+![Portada de Barrio Engine](docs/portada-barrio-engine.png)
 
 ### Resumen ejecutivo
 
-![Resumen ejecutivo](docs/images/resumen-ejecutivo.png)
+![Resumen ejecutivo](docs/resumen-ejecutivo.png)
 
 ### Centro de alertas
 
@@ -72,19 +72,19 @@ El dashboard no se limita a señalar que una orden está mal. Permite comprender
 
 ### Centro de aprobación
 
-![Centro de aprobación](docs/images/centro-aprobacion.png)
+![Centro de aprobación](docs/centro-aprobacion.png)
 
 ### Orden y comunicación por proveedor
 
-![Orden por proveedor](docs/images/orden-proveedor.png)
+![Orden por proveedor](docs/orden-proveedor.png)
 
 ### Calidad y trazabilidad del modelo
 
-![Calidad y modelo](docs/images/calidad-modelo.png)
+![Calidad y modelo](docs/calidad-modelo.png)
 
 ### Barrio AI
 
-![Barrio AI](docs/images/barrio-ai.png)
+![Barrio AI](docs/barrio-ai.png)
 
 ## Funciones principales
 
