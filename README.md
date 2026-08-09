@@ -68,7 +68,7 @@ El dashboard no se limita a señalar que una orden está mal. Permite comprender
 
 ### Centro de alertas
 
-![Centro de alertas](docs/images/centro-de-alertas.png)
+![Centro de alertas](docs/centro-de-alertas.png)
 
 ### Centro de aprobación
 
