@@ -286,6 +286,7 @@ def _instalar_experiencia_de_marca() -> None:
 
     marca = _imagen_data_uri(RAIZ / "assets" / "barrio-wordmark.png")
     cursor = _imagen_data_uri(RAIZ / "assets" / "pizza-cursor.png")
+    fase_interfaz = "dashboard" if st.session_state.get("portada_barrio_vista", False) else "welcome"
     if marca:
         st.markdown(
             f"""
@@ -308,6 +309,7 @@ def _instalar_experiencia_de_marca() -> None:
           const hostWindow = window.parent;
           const doc = hostWindow.document;
           const root = doc.documentElement;
+          const experiencePhase = '{fase_interfaz}';
 
           if (hostWindow.__barrioDashboardCleanup) {{
             hostWindow.__barrioDashboardCleanup();
@@ -316,6 +318,7 @@ def _instalar_experiencia_de_marca() -> None:
 
           const cursorNode = doc.createElement('div');
           cursorNode.id = 'bp-pizza-cursor';
+          cursorNode.dataset.phase = experiencePhase;
           cursorNode.setAttribute('aria-hidden', 'true');
           cursorNode.innerHTML = '<img src="{cursor}" alt="">';
           doc.body.appendChild(cursorNode);
