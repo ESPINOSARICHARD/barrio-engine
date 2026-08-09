@@ -320,6 +320,7 @@ def _instalar_experiencia_de_marca() -> None:
           doc.body.appendChild(cursorNode);
 
           const finePointer = hostWindow.matchMedia('(pointer: fine)');
+          const reducedMotion = hostWindow.matchMedia('(prefers-reduced-motion: reduce)');
           let frame = 0;
           let pointerX = 0;
           let pointerY = 0;
@@ -342,6 +343,38 @@ def _instalar_experiencia_de_marca() -> None:
           const pressCursor = () => cursorNode.classList.add('bp-cursor-pressed');
           const releaseCursor = () => cursorNode.classList.remove('bp-cursor-pressed');
           const hideCursor = () => cursorNode.classList.remove('bp-cursor-visible');
+
+          let welcomeButton = null;
+          let welcomeHandler = null;
+          const bindWelcomeTransition = () => {{
+            const button = doc.querySelector(
+              '.st-key-bp_welcome_gate [data-testid="stButton"] button'
+            );
+            if (!button || button === welcomeButton) return;
+            if (welcomeButton && welcomeHandler) {{
+              welcomeButton.removeEventListener('click', welcomeHandler, true);
+            }}
+            welcomeButton = button;
+            welcomeHandler = (event) => {{
+              if (button.dataset.bpEnterAuthorized === 'true') return;
+              if (reducedMotion.matches) {{
+                button.dataset.bpEnterAuthorized = 'true';
+                return;
+              }}
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              if (button.dataset.bpTransitioning === 'true') return;
+              button.dataset.bpTransitioning = 'true';
+              button.setAttribute('aria-busy', 'true');
+              root.classList.add('bp-welcome-leaving');
+              hostWindow.setTimeout(() => {{
+                if (!button.isConnected) return;
+                button.dataset.bpEnterAuthorized = 'true';
+                button.click();
+              }}, 380);
+            }};
+            button.addEventListener('click', welcomeHandler, true);
+          }};
 
           let observedSidebar = null;
           const sidebarResizeObserver = new hostWindow.ResizeObserver(() => syncSidebar());
@@ -372,6 +405,7 @@ def _instalar_experiencia_de_marca() -> None:
           const dashboardObserver = new hostWindow.MutationObserver(() => {{
             syncSidebar();
             keepPopoverHeaderVisible();
+            bindWelcomeTransition();
           }});
           dashboardObserver.observe(doc.body, {{ childList: true, subtree: true }});
 
@@ -385,6 +419,7 @@ def _instalar_experiencia_de_marca() -> None:
           syncPointerMode();
           syncSidebar();
           keepPopoverHeaderVisible();
+          bindWelcomeTransition();
 
           hostWindow.__barrioDashboardCleanup = () => {{
             dashboardObserver.disconnect();
@@ -395,9 +430,12 @@ def _instalar_experiencia_de_marca() -> None:
             doc.removeEventListener('pointercancel', releaseCursor);
             doc.removeEventListener('pointerleave', hideCursor);
             finePointer.removeEventListener('change', syncPointerMode);
+            if (welcomeButton && welcomeHandler) {{
+              welcomeButton.removeEventListener('click', welcomeHandler, true);
+            }}
             if (frame) hostWindow.cancelAnimationFrame(frame);
             cursorNode.remove();
-            root.classList.remove('bp-cursor-ready', 'bp-sidebar-open');
+            root.classList.remove('bp-cursor-ready', 'bp-sidebar-open', 'bp-welcome-leaving');
           }};
         }})();
         </script>
@@ -507,7 +545,12 @@ def _encabezado_producto(
     )
 
 
-def _titulo_seccion(indice: str, titulo: str, descripcion: str) -> None:
+def _titulo_seccion(
+    indice: str,
+    titulo: str,
+    descripcion: str,
+    manifiesto: str,
+) -> None:
     st.markdown(
         f'<div class="bp-section-kicker">{_seguro(indice)}</div>',
         unsafe_allow_html=True,
@@ -515,6 +558,32 @@ def _titulo_seccion(indice: str, titulo: str, descripcion: str) -> None:
     st.header(titulo)
     st.markdown(
         f'<p class="bp-section-intro">{_seguro(descripcion)}</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f'<p class="bp-section-voice">{_seguro(manifiesto)}</p>',
+        unsafe_allow_html=True,
+    )
+
+
+def _renderizar_pie_producto() -> None:
+    pizza = _imagen_data_uri(RAIZ / "assets" / "pizza-cursor.png")
+    st.markdown(
+        f"""
+        <footer class="bp-product-footer" aria-label="BARRIO ENGINE">
+          <div class="bp-product-footer-brand">
+            <img src="{pizza}" alt="" aria-hidden="true">
+            <div>
+              <strong>BARRIO ENGINE</strong>
+              <span>{_texto('Centro de decisiones operativas', 'Operational decision center')}</span>
+            </div>
+          </div>
+          <div class="bp-product-footer-signature">
+            <span>{_texto('Del dato a la decisión. De la decisión al barrio.', 'From data to decisions. From decisions to the barrio.')}</span>
+            <small>{_texto('Barrio Pizza · Panamá', 'Barrio Pizza · Panama')}</small>
+          </div>
+        </footer>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -1125,6 +1194,10 @@ with pestanas[0]:
             "Lo importante de la revisión semanal, ordenado por riesgo y listo para actuar.",
             "The weekly review essentials, ranked by risk and ready for action.",
         ),
+        _texto(
+            "Lo urgente, antes de que se convierta en problema.",
+            "The urgent, before it becomes a problem.",
+        ),
     )
 
     alertas = filtrar_resultados(analisis.resultados, solo_alertas=True)
@@ -1408,6 +1481,10 @@ with pestanas[1]:
             "Una bandeja de decisiones: filtra, compara la cantidad pedida y abre el expediente auditable de cada caso.",
             "A decision inbox: filter, compare requested quantities and open the auditable case file for each alert.",
         ),
+        _texto(
+            "Cada diferencia necesita una decisión.",
+            "Every difference needs a decision.",
+        ),
     )
 
     sucursales_disponibles = sorted(analisis.resultados["sucursal"].dropna().unique())
@@ -1633,6 +1710,10 @@ with pestanas[2]:
             "Convierte cada alerta en una decisión explícita, conserva el motivo y prepara una orden final con evidencia humana.",
             "Turn every alert into an explicit decision, preserve the reason and prepare a final order with human evidence.",
         ),
+        _texto(
+            "La recomendación propone. La gerente decide.",
+            "The recommendation proposes. The manager decides.",
+        ),
     )
     st.caption(
         _texto(
@@ -1716,6 +1797,25 @@ with pestanas[2]:
                 )
             )
             st.rerun()
+
+    if estado_aprobacion["lista_para_aprobar"]:
+        pizza_cierre = _imagen_data_uri(RAIZ / "assets" / "pizza-cursor.png")
+        st.markdown(
+            f"""
+            <div class="bp-completion" role="status" aria-live="polite">
+              <div class="bp-completion-seal" aria-hidden="true">
+                <img src="{pizza_cierre}" alt="">
+              </div>
+              <div class="bp-completion-copy">
+                <span>{_texto('Revisión semanal completada', 'Weekly review complete')}</span>
+                <strong>{_texto('ORDEN LISTA', 'ORDER READY')}</strong>
+                <p>{_texto('Decisiones documentadas · Lista para proveedor', 'Decisions documented · Ready for suppliers')}</p>
+              </div>
+              <span class="bp-completion-watermark" aria-hidden="true">LISTA · READY</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     if estado_aprobacion["devueltas"]:
         st.warning(
@@ -1944,6 +2044,10 @@ with pestanas[3]:
             "Revisa el ajuste final, filtra por proveedor y descarga archivos listos para enviar. La recomendación excluye productos desconocidos y conserva formatos completos.",
             "Review the final adjustment, filter by supplier and download files ready to send. The recommendation excludes unknown products and preserves full purchase formats.",
         ),
+        _texto(
+            "Del análisis al proveedor.",
+            "From analysis to supplier.",
+        ),
     )
 
     es_orden_aprobada = orden_aprobada is not None
@@ -2131,6 +2235,10 @@ with pestanas[4]:
         _texto(
             "Distingue problemas de archivo, desempeño del modelo y evidencia de cada proyección.",
             "Separate file issues, model performance and the evidence behind every forecast.",
+        ),
+        _texto(
+            "Una buena decisión comienza con datos confiables.",
+            "A good decision starts with trustworthy data.",
         ),
     )
 
@@ -2389,6 +2497,9 @@ with pestanas[4]:
         )
 
 
+_renderizar_pie_producto()
+
+
 contexto_operativo_ai = {
     **contexto_aprobacion,
     "escenario_activo": contexto_escenario,
@@ -2501,7 +2612,7 @@ def _renderizar_barrio_ai_flotante() -> None:
                 ):
                     pregunta_sugerida = sugerencia
 
-            with st.container(height=235, key="barrio_ai_history"):
+            with st.container(height=128, key="barrio_ai_history"):
                 if not st.session_state.mensajes_asistente:
                     st.markdown(
                         _texto(
