@@ -51,11 +51,16 @@ El dashboard no se limita a señalar que una orden está mal. Permite comprender
 - **Supervisión humana:** la gerente puede aplicar la recomendación, mantener la orden con motivo, devolver el caso o separar un problema de catálogo.
 - **Cierre operativo:** genera la orden aprobada, la bitácora y mensajes listos para proveedores y sucursales.
 - **IA fundamentada:** Barrio AI explica resultados ya calculados; no inventa cantidades ni sustituye el motor de compras.
+- **Entrada con propósito:** una portada de marca conecta la experiencia con la idea central del producto: la calidad de una pizza también comienza en una buena decisión de compra. Se muestra una vez por sesión y permite entrar con clic o teclado.
 
 ## Uso de IA
 - [Explicación completa del uso de IA](docs/uso-de-ia.md)
 
 ## Demostración visual
+
+### Portada de entrada
+
+![Portada de Barrio Engine](docs/images/portada-barrio-engine.png)
 
 ### Resumen ejecutivo
 

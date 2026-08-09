@@ -225,6 +225,62 @@ def _cargar_estilos() -> None:
         st.markdown(f"<style>{ruta.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 
 
+def _renderizar_portada_inicial() -> None:
+    """Muestra una portada de marca una sola vez por sesión de navegador."""
+
+    if st.session_state.get("portada_barrio_vista", False):
+        return
+
+    logo = _imagen_data_uri(RAIZ / "assets" / "barrio-logo-sidebar.png")
+    pizza = _imagen_data_uri(RAIZ / "assets" / "pizza-cursor.png")
+
+    with st.container(key="bp_welcome_gate"):
+        st.markdown(
+            f"""
+            <section class="bp-welcome" aria-labelledby="bp-welcome-title">
+              <div class="bp-welcome-orbit bp-welcome-orbit--one" aria-hidden="true"></div>
+              <div class="bp-welcome-orbit bp-welcome-orbit--two" aria-hidden="true"></div>
+              <div class="bp-welcome-brand">
+                <img src="{logo}" alt="Barrio Pizza">
+                <span>BARRIO ENGINE&nbsp; · &nbsp;INTELIGENCIA DE COMPRAS</span>
+              </div>
+              <div class="bp-welcome-copy">
+                <div class="bp-welcome-kicker">ANTES DEL PRIMER HORNO</div>
+                <h1 id="bp-welcome-title">
+                  <span>Una pizza no comienza en el horno.</span>
+                  <strong>Comienza desde que se hace el pedido.</strong>
+                </h1>
+                <p>Del dato a la decisión. De la decisión al barrio.</p>
+              </div>
+              <div class="bp-welcome-route" aria-hidden="true">
+                <span class="bp-welcome-route-label">PEDIDO</span>
+                <div class="bp-welcome-track">
+                  <span class="bp-welcome-track-fill"></span>
+                  <img src="{pizza}" alt="">
+                </div>
+                <span class="bp-welcome-route-label">HORNO</span>
+              </div>
+              <div class="bp-welcome-enter">
+                <span class="bp-welcome-enter-dot" aria-hidden="true"></span>
+                Haz clic en cualquier parte para entrar
+              </div>
+            </section>
+            """,
+            unsafe_allow_html=True,
+        )
+        entrar = st.button(
+            "Entrar a Barrio Engine",
+            key="bp_enter_dashboard",
+            help="Abrir el centro de decisiones operativas",
+        )
+
+    if entrar:
+        st.session_state.portada_barrio_vista = True
+        st.rerun()
+
+    st.stop()
+
+
 def _instalar_experiencia_de_marca() -> None:
     """Instala recursos visuales globales sin intervenir en los cálculos."""
 
@@ -782,6 +838,7 @@ def _crear_generador_ia(api_key: str, modelo: str):
 
 
 _cargar_estilos()
+_renderizar_portada_inicial()
 _instalar_experiencia_de_marca()
 
 with st.container(key="bp_language_switch"):

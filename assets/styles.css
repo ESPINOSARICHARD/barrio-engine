@@ -96,6 +96,319 @@ a {
   text-underline-offset: 0.18em;
 }
 
+/* Opening statement: a one-time, keyboard-accessible brand gate. The native
+   Streamlit button covers the viewport transparently so every point is a
+   real click target while session state controls dismissal reliably. */
+.st-key-bp_welcome_gate {
+  position: fixed;
+  z-index: 1000000;
+  inset: 0;
+  overflow: hidden;
+  background: #171415;
+  color: #fff;
+}
+
+.st-key-bp_welcome_gate > div {
+  height: 100%;
+}
+
+.bp-welcome {
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: clamp(1.5rem, 4vw, 4rem) clamp(1.35rem, 7vw, 7rem) clamp(1.5rem, 3vw, 3rem);
+  isolation: isolate;
+}
+
+.bp-welcome::before {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  top: 0;
+  left: clamp(1.35rem, 7vw, 7rem);
+  width: 4.25rem;
+  height: 0.35rem;
+  background: var(--bp-red);
+}
+
+.bp-welcome::after {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  inset: auto clamp(1.35rem, 7vw, 7rem) 5.25rem;
+  border-top: 1px solid rgb(255 255 255 / 14%);
+}
+
+.bp-welcome-brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: rgb(255 255 255 / 68%);
+  font-family: var(--bp-display);
+  font-size: clamp(0.64rem, 1vw, 0.78rem);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  animation: bp-welcome-rise 650ms 80ms both;
+}
+
+.bp-welcome-brand img {
+  width: clamp(58px, 6vw, 82px);
+  height: auto;
+}
+
+.bp-welcome-copy {
+  align-self: center;
+  width: min(1120px, 92%);
+  margin: 2rem 0;
+}
+
+.bp-welcome-kicker {
+  margin-bottom: clamp(1rem, 2vw, 1.6rem);
+  color: rgb(255 255 255 / 55%);
+  font-family: var(--bp-display);
+  font-size: clamp(0.7rem, 1vw, 0.84rem);
+  font-weight: 850;
+  letter-spacing: 0.22em;
+  animation: bp-welcome-rise 650ms 180ms both;
+}
+
+.bp-welcome h1 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.06em;
+  margin: 0;
+  color: #fff;
+  font-size: clamp(3rem, 7.2vw, 7.8rem);
+  font-weight: 900;
+  letter-spacing: -0.052em;
+  line-height: 0.92;
+  text-wrap: balance;
+}
+
+.bp-welcome h1 span,
+.bp-welcome h1 strong {
+  display: block;
+}
+
+.bp-welcome h1 span {
+  animation: bp-welcome-rise 720ms 260ms both;
+}
+
+.bp-welcome h1 strong {
+  color: var(--bp-red);
+  font-weight: inherit;
+  animation: bp-welcome-rise 720ms 390ms both;
+}
+
+.bp-welcome-copy p {
+  margin: clamp(1.3rem, 2.5vw, 2.25rem) 0 0;
+  color: rgb(255 255 255 / 68%);
+  font-size: clamp(0.9rem, 1.5vw, 1.12rem);
+  letter-spacing: 0.035em;
+  animation: bp-welcome-rise 650ms 520ms both;
+}
+
+.bp-welcome-route {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 340px) auto;
+  align-items: center;
+  gap: 0.85rem;
+  width: min(460px, 72vw);
+  margin-bottom: 1.4rem;
+  animation: bp-welcome-rise 650ms 650ms both;
+}
+
+.bp-welcome-route-label {
+  color: rgb(255 255 255 / 52%);
+  font-family: var(--bp-display);
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.18em;
+}
+
+.bp-welcome-track {
+  position: relative;
+  height: 2px;
+  background: rgb(255 255 255 / 17%);
+}
+
+.bp-welcome-track-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 58%;
+  background: var(--bp-red);
+  transform-origin: left;
+  animation: bp-welcome-progress 2.4s ease-in-out infinite alternate;
+}
+
+.bp-welcome-track img {
+  position: absolute;
+  top: 50%;
+  left: 58%;
+  width: 31px;
+  height: 31px;
+  transform: translate(-50%, -50%) rotate(-12deg);
+  filter: drop-shadow(0 3px 6px rgb(0 0 0 / 35%));
+  animation: bp-welcome-pizza 2.4s ease-in-out infinite alternate;
+}
+
+.bp-welcome-enter {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: rgb(255 255 255 / 78%);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  animation: bp-welcome-rise 650ms 760ms both;
+}
+
+.bp-welcome-enter-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--bp-red);
+  box-shadow: 0 0 0 5px rgb(207 47 44 / 16%);
+  animation: bp-welcome-pulse 1.7s ease-in-out infinite;
+}
+
+.bp-welcome-orbit {
+  position: absolute;
+  z-index: -1;
+  border: 1px solid rgb(255 255 255 / 6%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.bp-welcome-orbit--one {
+  top: 8%;
+  right: -13vw;
+  width: min(48vw, 720px);
+  aspect-ratio: 1;
+  border-width: clamp(40px, 6vw, 92px);
+}
+
+.bp-welcome-orbit--two {
+  right: 10%;
+  bottom: -38%;
+  width: min(24vw, 360px);
+  aspect-ratio: 1;
+}
+
+.st-key-bp_welcome_gate .stButton {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  margin: 0;
+}
+
+.st-key-bp_welcome_gate .stButton button {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: transparent !important;
+  cursor: pointer;
+}
+
+.st-key-bp_welcome_gate .stButton button:focus-visible {
+  outline: 3px solid #fff !important;
+  outline-offset: -8px;
+}
+
+.st-key-bp_welcome_gate .stButton button * {
+  color: transparent !important;
+}
+
+@keyframes bp-welcome-rise {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bp-welcome-progress {
+  from { width: 18%; }
+  to { width: 82%; }
+}
+
+@keyframes bp-welcome-pizza {
+  from { left: 18%; transform: translate(-50%, -50%) rotate(-18deg); }
+  to { left: 82%; transform: translate(-50%, -50%) rotate(14deg); }
+}
+
+@keyframes bp-welcome-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@media (max-height: 800px) and (min-width: 641px) {
+  .bp-welcome {
+    padding-top: 2rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .bp-welcome-brand img {
+    width: 56px;
+  }
+
+  .bp-welcome-copy {
+    margin: 1rem 0;
+  }
+
+  .bp-welcome-kicker {
+    margin-bottom: 0.75rem;
+  }
+
+  .bp-welcome h1 {
+    font-size: clamp(3rem, 6.2vw, 5.25rem);
+  }
+
+  .bp-welcome-copy p {
+    margin-top: 0.85rem;
+  }
+
+  .bp-welcome-route {
+    margin-bottom: 0.85rem;
+  }
+
+  .bp-welcome::after {
+    bottom: 3.55rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .bp-welcome {
+    padding: 1.5rem 1.25rem 1.35rem;
+  }
+
+  .bp-welcome-brand span {
+    max-width: 190px;
+    line-height: 1.5;
+  }
+
+  .bp-welcome-copy {
+    width: 100%;
+  }
+
+  .bp-welcome h1 {
+    font-size: clamp(2.65rem, 13.5vw, 4.2rem);
+    line-height: 0.96;
+  }
+
+  .bp-welcome-route {
+    width: 100%;
+  }
+}
+
 /* Brand header: aligned to the official Barrio Pizza web identity without
    bundling the proprietary Zuume or Sequel Sans font files. */
 .bp-header {
