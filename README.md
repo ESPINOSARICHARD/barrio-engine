@@ -17,7 +17,7 @@
 
 > **Aplicación en vivo:** [Abrir BARRIO ENGINE](https://barrio-pizza-compras-inteligentes.streamlit.app/)
 >
-> **Repositorio público:** [ESPINOSARICHARD/barrio-pizza-compras-inteligentes](https://github.com/ESPINOSARICHARD/barrio-pizza-compras-inteligentes)
+> **Repositorio público:** [ESPINOSARICHARD/barrio-engine](https://github.com/ESPINOSARICHARD/barrio-engine)
 
 ## El problema que resuelve
 
@@ -331,8 +331,8 @@ Los módulos matemáticos están separados de Streamlit. Esto permite probar el 
 ### Windows PowerShell
 
 ```powershell
-git clone https://github.com/ESPINOSARICHARD/barrio-pizza-compras-inteligentes.git
-cd barrio-pizza-compras-inteligentes
+git clone https://github.com/ESPINOSARICHARD/barrio-engine.git
+cd barrio-engine
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -343,8 +343,8 @@ streamlit run app.py
 ### macOS o Linux
 
 ```bash
-git clone https://github.com/ESPINOSARICHARD/barrio-pizza-compras-inteligentes.git
-cd barrio-pizza-compras-inteligentes
+git clone https://github.com/ESPINOSARICHARD/barrio-engine.git
+cd barrio-engine
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip

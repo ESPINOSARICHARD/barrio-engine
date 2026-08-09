@@ -312,6 +312,7 @@ def _instalar_experiencia_de_marca() -> None:
           if (hostWindow.__barrioDashboardCleanup) {{
             hostWindow.__barrioDashboardCleanup();
           }}
+          root.classList.remove('bp-welcome-leaving');
 
           const cursorNode = doc.createElement('div');
           cursorNode.id = 'bp-pizza-cursor';
@@ -367,6 +368,9 @@ def _instalar_experiencia_de_marca() -> None:
               button.dataset.bpTransitioning = 'true';
               button.setAttribute('aria-busy', 'true');
               root.classList.add('bp-welcome-leaving');
+              hostWindow.setTimeout(() => {{
+                root.classList.remove('bp-welcome-leaving');
+              }}, 460);
               hostWindow.setTimeout(() => {{
                 if (!button.isConnected) return;
                 button.dataset.bpEnterAuthorized = 'true';
@@ -1585,19 +1589,20 @@ with pestanas[1]:
             unsafe_allow_html=True,
         )
 
-        metricas_caso = st.columns(3)
-        unidad = str(caso.get("unidad_base", ""))
-        with metricas_caso[0]:
-            _tarjeta_metrica(_texto("Consumo proyectado", "Forecast consumption"), _formatear_numero(caso["consumo_proyectado_unidad_base"]), unidad)
-        with metricas_caso[1]:
-            _tarjeta_metrica(_texto("Inventario actual", "Current inventory"), _formatear_numero(caso["stock_actual_unidad_base"]), unidad)
-        with metricas_caso[2]:
-            _tarjeta_metrica(_texto("Solicitado", "Requested"), _formatear_numero(caso["cantidad_formatos_solicitados"]), _texto("formatos", "formats"))
-        metricas_caso_secundarias = st.columns(2)
-        with metricas_caso_secundarias[0]:
-            _tarjeta_metrica(_texto("Recomendado", "Recommended"), _formatear_numero(caso["formatos_recomendados"]), str(caso.get("formato_compra", _texto("formatos", "formats"))), "brand")
-        with metricas_caso_secundarias[1]:
-            _tarjeta_metrica(_texto("Cobertura", "Coverage"), _formatear_porcentaje(caso["cobertura_proyectada_pct"]), _texto("consumo proyectado", "forecast consumption"))
+        with st.container(key="bp_alert_case_metrics"):
+            metricas_caso = st.columns(3)
+            unidad = str(caso.get("unidad_base", ""))
+            with metricas_caso[0]:
+                _tarjeta_metrica(_texto("Consumo proyectado", "Forecast consumption"), _formatear_numero(caso["consumo_proyectado_unidad_base"]), unidad)
+            with metricas_caso[1]:
+                _tarjeta_metrica(_texto("Inventario actual", "Current inventory"), _formatear_numero(caso["stock_actual_unidad_base"]), unidad)
+            with metricas_caso[2]:
+                _tarjeta_metrica(_texto("Solicitado", "Requested"), _formatear_numero(caso["cantidad_formatos_solicitados"]), _texto("formatos", "formats"))
+            metricas_caso_secundarias = st.columns(2)
+            with metricas_caso_secundarias[0]:
+                _tarjeta_metrica(_texto("Recomendado", "Recommended"), _formatear_numero(caso["formatos_recomendados"]), str(caso.get("formato_compra", _texto("formatos", "formats"))), "brand")
+            with metricas_caso_secundarias[1]:
+                _tarjeta_metrica(_texto("Cobertura", "Coverage"), _formatear_porcentaje(caso["cobertura_proyectada_pct"]), _texto("consumo proyectado", "forecast consumption"))
 
         proyeccion = proyeccion_del_caso(
             analisis.proyecciones,

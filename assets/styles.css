@@ -1153,8 +1153,20 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
   border-bottom-color: var(--bp-red);
 }
 
+:is([data-baseweb="tab"], [data-testid="stTab"])[aria-selected="true"] * {
+  color: var(--bp-paper) !important;
+}
+
 :is([data-baseweb="tab"], [data-testid="stTab"])[aria-selected="true"]::before {
-  color: #ff6258;
+  color: var(--bp-paper);
+}
+
+.st-key-bp_alert_case_metrics [data-testid="stHorizontalBlock"] {
+  gap: 0.85rem;
+}
+
+.st-key-bp_alert_case_metrics {
+  gap: 0.85rem !important;
 }
 
 [data-testid="stDataFrame"],
