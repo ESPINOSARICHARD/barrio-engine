@@ -242,10 +242,10 @@ def _renderizar_portada_inicial() -> None:
               <div class="bp-welcome-orbit bp-welcome-orbit--two" aria-hidden="true"></div>
               <div class="bp-welcome-brand">
                 <img src="{logo}" alt="Barrio Pizza">
-                <span>BARRIO ENGINE&nbsp; · &nbsp;INTELIGENCIA DE COMPRAS</span>
+                <span>BARRIO ENGINE</span>
               </div>
               <div class="bp-welcome-copy">
-                <div class="bp-welcome-kicker">ANTES DEL PRIMER HORNO</div>
+                <div class="bp-welcome-kicker">EL MOTOR DETRÁS DE CADA GRAN PIZZA</div>
                 <h1 id="bp-welcome-title">
                   <span>Una pizza no comienza en el horno.</span>
                   <strong>Comienza desde que se hace el pedido.</strong>
@@ -838,8 +838,8 @@ def _crear_generador_ia(api_key: str, modelo: str):
 
 
 _cargar_estilos()
-_renderizar_portada_inicial()
 _instalar_experiencia_de_marca()
+_renderizar_portada_inicial()
 
 with st.container(key="bp_language_switch"):
     st.segmented_control(
