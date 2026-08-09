@@ -68,10 +68,24 @@ from src.presentacion import (
     nombre_ingrediente_visible,
     reemplazar_nombre_visible,
 )
+from src.persistencia import (
+    crear_clave_orden,
+    estado_persistido_vacio,
+    normalizar_estado_persistido,
+    restaurar_decisiones,
+    restaurar_edicion,
+    restaurar_orden_guardada,
+    serializar_orden,
+)
 from src.proyecciones import ErrorProyeccion
 
 
 RAIZ = Path(__file__).resolve().parent
+CLAVE_ESTADO_NAVEGADOR = "barrio-engine:operational-state:v1"
+_persistencia_navegador = components.declare_component(
+    "barrio_engine_persistence",
+    path=str(RAIZ / "assets" / "persistence_component"),
+)
 COLORES_PRIORIDAD = {
     "CRITICA": "#871D16",
     "ALTA": "#B84C00",
@@ -153,6 +167,29 @@ def _en_ingles() -> bool:
 
 def _texto(espanol: str, ingles: str) -> str:
     return ingles if _en_ingles() else espanol
+
+
+def _cargar_estado_navegador() -> dict[str, object] | None:
+    """Lee el estado privado del navegador antes de construir el análisis."""
+    valor = _persistencia_navegador(
+        mode="load",
+        storage_key=CLAVE_ESTADO_NAVEGADOR,
+        default=None,
+        key="bp_persistence_loader",
+    )
+    if valor is None:
+        return None
+    return normalizar_estado_persistido(valor)
+
+
+def _guardar_estado_navegador(estado: dict[str, object]) -> None:
+    """Sincroniza el estado actual sin provocar un nuevo recálculo."""
+    _persistencia_navegador(
+        mode="save",
+        storage_key=CLAVE_ESTADO_NAVEGADOR,
+        payload=estado,
+        key="bp_persistence_saver",
+    )
 
 
 def _idioma_codigo() -> str:
@@ -917,6 +954,14 @@ _cargar_estilos()
 _instalar_experiencia_de_marca()
 _renderizar_portada_inicial()
 
+estado_navegador = _cargar_estado_navegador()
+if estado_navegador is None:
+    with st.spinner(_texto("Restaurando la revisión guardada…", "Restoring the saved review…")):
+        st.stop()
+estado_navegador = normalizar_estado_persistido(
+    estado_navegador or estado_persistido_vacio()
+)
+
 with st.container(key="bp_language_switch"):
     st.segmented_control(
         "Idioma / Language",
@@ -958,14 +1003,24 @@ with st.sidebar:
         )
     )
 
+    fuente_guardada = estado_navegador.get("fuente_activa", {"tipo": "reto"})
+    if not isinstance(fuente_guardada, dict):
+        fuente_guardada = {"tipo": "reto"}
+    if "fuente_orden" not in st.session_state:
+        st.session_state.fuente_orden = (
+            "Cargar otro CSV"
+            if fuente_guardada.get("tipo") == "csv"
+            else "Orden del reto"
+        )
+
     fuente = st.radio(
         _texto("1. Fuente de la orden", "1. Order source"),
         options=["Orden del reto", "Cargar otro CSV"],
-        index=0,
         format_func=lambda valor: {
             "Orden del reto": _texto("Orden del reto", "Challenge order"),
             "Cargar otro CSV": _texto("Cargar otro CSV", "Upload another CSV"),
         }[valor],
+        key="fuente_orden",
     )
 
     orden_activa = datos_base["orden_compra_semana"].copy()
@@ -980,12 +1035,32 @@ with st.sidebar:
                 "It must contain sucursal, ingrediente_id and cantidad_formatos.",
             ),
         )
-        if archivo is None:
+        orden_restaurada = (
+            restaurar_orden_guardada(fuente_guardada.get("orden"))
+            if fuente_guardada.get("tipo") == "csv"
+            else None
+        )
+        if archivo is None and orden_restaurada is not None:
+            orden_activa = orden_restaurada
+            fuente_texto = str(fuente_guardada.get("nombre") or "orden_guardada.csv")
+            st.success(
+                _texto(
+                    "Orden cargada anteriormente · restaurada en este navegador.",
+                    "Previously uploaded order · restored in this browser.",
+                )
+            )
+        elif archivo is None:
+            estado_navegador["fuente_activa"] = {"tipo": "reto"}
             st.info(_texto("Selecciona un CSV para iniciar la validación.", "Select a CSV to start validation."))
         else:
             try:
                 orden_activa = leer_orden_csv(archivo.getvalue())
                 fuente_texto = archivo.name
+                estado_navegador["fuente_activa"] = {
+                    "tipo": "csv",
+                    "nombre": archivo.name,
+                    "orden": serializar_orden(orden_activa),
+                }
                 st.success(
                     _texto(
                         "CSV recibido. La orden fue validada y recalculada.",
@@ -1000,15 +1075,26 @@ with st.sidebar:
                     )
                 )
                 st.stop()
+    else:
+        estado_navegador["fuente_activa"] = {"tipo": "reto"}
+
+    clave_fuente = crear_clave_orden(orden_activa)
+    editores_guardados = estado_navegador.setdefault("editores", {})
+    editor_guardado = editores_guardados.get(clave_fuente, {})
+    if not isinstance(editor_guardado, dict):
+        editor_guardado = {}
 
     permitir_edicion = st.toggle(
         _texto("3. Activar editor de cantidades", "3. Enable quantity editor"),
-        value=False,
+        value=bool(editor_guardado.get("activo", False)),
         help=_texto(
             "Completa ingredientes omitidos con cero y recalcula al editar.",
             "Adds missing ingredients with zero and recalculates after edits.",
         ),
+        key=f"permitir_edicion_{clave_fuente[:12]}",
     )
+    editor_guardado["activo"] = permitir_edicion
+    editores_guardados[clave_fuente] = editor_guardado
 
     if permitir_edicion:
         try:
@@ -1016,6 +1102,10 @@ with st.sidebar:
                 orden=orden_activa,
                 consumo_historico=datos_base["consumo_historico"],
                 ingredientes=datos_base["ingredientes"],
+            )
+            orden_editor = restaurar_edicion(
+                orden_editor,
+                editor_guardado.get("orden"),
             )
         except ErrorDashboard as error:
             st.error(str(error))
@@ -1065,11 +1155,12 @@ with st.sidebar:
                     width="small",
                 ),
             },
-            key="editor_orden",
+            key=f"editor_orden_{clave_fuente[:12]}",
         )
         orden_activa = orden_editada[
             ["sucursal", "ingrediente_id", "cantidad_formatos"]
         ].copy()
+        editor_guardado["orden"] = serializar_orden(orden_activa)
         fuente_texto += _texto(" · edición activa", " · editing active")
 
     st.divider()
@@ -1083,6 +1174,12 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
     st.caption(_texto("Flujo: cargar → auditar → corregir → descargar", "Flow: upload → audit → correct → download"))
+    st.caption(
+        _texto(
+            "Decisiones y cambios · guardado automático en este navegador",
+            "Decisions and changes · automatically saved in this browser",
+        )
+    )
     st.markdown(
         f"""
         <div class="bp-side-step"><b>1</b><span>{_texto('Revisa las prioridades del resumen.', 'Review the priorities in the summary.')}</span></div>
@@ -1131,6 +1228,10 @@ if clave_gemini:
 
 casos_aprobacion = construir_casos_aprobacion(analisis.resultados)
 huella_revision = crear_huella_revision(analisis.resultados)
+revisiones_guardadas = estado_navegador.setdefault("revisiones", {})
+revision_guardada = revisiones_guardadas.get(huella_revision, {})
+if not isinstance(revision_guardada, dict):
+    revision_guardada = {}
 revision_previa = st.session_state.get("revision_aprobacion")
 revision_reiniciada = bool(
     revision_previa and revision_previa.get("huella") != huella_revision
@@ -1138,12 +1239,25 @@ revision_reiniciada = bool(
 if not revision_previa or revision_previa.get("huella") != huella_revision:
     st.session_state.revision_aprobacion = {
         "huella": huella_revision,
-        "decisiones": {},
+        "decisiones": restaurar_decisiones(
+            casos_aprobacion,
+            revision_guardada.get("decisiones"),
+        ),
     }
     if revision_reiniciada:
         st.session_state.mensajes_asistente = []
 
 decisiones_aprobacion = st.session_state.revision_aprobacion["decisiones"]
+if "responsable_revision" not in st.session_state:
+    st.session_state.responsable_revision = str(
+        revision_guardada.get("responsable", "")
+    )
+revision_guardada["decisiones"] = decisiones_aprobacion
+revision_guardada["responsable"] = str(
+    st.session_state.get("responsable_revision", "")
+)
+revisiones_guardadas[huella_revision] = revision_guardada
+_guardar_estado_navegador(estado_navegador)
 estado_aprobacion = resumir_aprobacion(
     casos_aprobacion,
     decisiones_aprobacion,
@@ -1917,7 +2031,7 @@ with pestanas[2]:
                 _tarjeta_metrica(
                     _texto("Decisión", "Decision"),
                     estado_decision,
-                    _texto("registro de sesión", "session record"),
+                    _texto("registro guardado", "saved record"),
                     "good" if decision_actual else "medium",
                     compacto=True,
                 )

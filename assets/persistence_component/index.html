@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <title>Persistencia de BARRIO ENGINE</title>
+  </head>
+  <body>
+    <script>
+      let loadSent = false;
+
+      const send = (type, payload = {}) => {
+        window.parent.postMessage(
+          { isStreamlitMessage: true, type, ...payload },
+          "*"
+        );
+      };
+
+      window.addEventListener("message", (event) => {
+        const message = event.data;
+        if (!message || message.type !== "streamlit:render") return;
+
+        const args = message.args || {};
+        const storageKey = String(args.storage_key || "barrio-engine:state:v1");
+        try {
+          if (args.mode === "load" && !loadSent) {
+            const raw = window.localStorage.getItem(storageKey);
+            const value = raw
+              ? JSON.parse(raw)
+              : {
+                  version: 1,
+                  fuente_activa: { tipo: "reto" },
+                  editores: {},
+                  revisiones: {}
+                };
+            loadSent = true;
+            send("streamlit:setComponentValue", { value });
+          } else if (args.mode === "save") {
+            const serialized = JSON.stringify(args.payload || {});
+            if (window.localStorage.getItem(storageKey) !== serialized) {
+              window.localStorage.setItem(storageKey, serialized);
+            }
+          }
+        } catch (_error) {
+          if (args.mode === "load" && !loadSent) {
+            loadSent = true;
+            send("streamlit:setComponentValue", {
+              value: {
+                version: 1,
+                fuente_activa: { tipo: "reto" },
+                editores: {},
+                revisiones: {}
+              }
+            });
+          }
+        }
+        send("streamlit:setFrameHeight", { height: 0 });
+      });
+
+      send("streamlit:componentReady", { apiVersion: 1 });
+      send("streamlit:setFrameHeight", { height: 0 });
+    </script>
+  </body>
+</html>
