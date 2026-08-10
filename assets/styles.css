@@ -366,38 +366,38 @@ html.bp-welcome-leaving .st-key-bp_welcome_gate {
   to { opacity: 0; transform: scale(0.985); filter: blur(2px); }
 }
 
-@media (max-height: 800px) and (min-width: 641px) {
+@media (max-height: 900px) and (min-width: 641px) {
   .bp-welcome {
-    padding-top: 2rem;
-    padding-bottom: 1.5rem;
+    padding-top: 1.5rem;
+    padding-bottom: 1.25rem;
   }
 
   .bp-welcome-brand img {
-    width: 56px;
+    width: 52px;
   }
 
   .bp-welcome-copy {
-    margin: 1rem 0;
+    margin: 0.65rem 0;
   }
 
   .bp-welcome-kicker {
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.6rem;
   }
 
   .bp-welcome h1 {
-    font-size: clamp(3rem, 6.2vw, 5.25rem);
+    font-size: clamp(2.8rem, 5.8vw, 5rem);
   }
 
   .bp-welcome-copy p {
-    margin-top: 0.85rem;
+    margin-top: 0.65rem;
   }
 
   .bp-welcome-route {
-    margin-bottom: 0.85rem;
+    margin-bottom: 0.65rem;
   }
 
   .bp-welcome::after {
-    bottom: 3.55rem;
+    bottom: 3.25rem;
   }
 }
 
