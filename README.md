@@ -29,7 +29,7 @@ Cada semana las sucursales de Barrio Pizza preparan órdenes de compra. Revisarl
 - identificadores que no existen en el catálogo;
 - errores de formato, unidades o integridad de los archivos.
 
-La aplicación convierte esa revisión en un flujo operativo auditable: primero valida los datos, luego proyecta el consumo, calcula la necesidad real, compara la orden, prioriza los problemas y acompaña a la gerente hasta una orden aprobada por proveedor.
+La aplicación convierte esa revisión en un flujo operativo auditable: primero valida los datos, luego proyecta el consumo, calcula la necesidad real, compara la orden, prioriza los problemas y acompaña al gerente hasta una orden aprobada por proveedor.
 
 ```mermaid
 flowchart LR
@@ -354,21 +354,6 @@ streamlit run app.py
 
 La aplicación estará disponible normalmente en `http://localhost:8501`.
 
-## Configuración opcional de la IA
-
-El dashboard funciona sin una clave externa mediante su respaldo local. Para habilitar el servicio de IA:
-
-1. copia `.streamlit/secrets.toml.example` como `.streamlit/secrets.toml`;
-2. coloca la clave real únicamente en el archivo local;
-3. reinicia Streamlit.
-
-```toml
-GEMINI_API_KEY = "TU_CLAVE_PRIVADA"
-GEMINI_MODEL = "MODELO_DISPONIBLE_PARA_TU_CUENTA"
-```
-
-`.streamlit/secrets.toml`, `.env` y `.venv/` están ignorados por Git. Nunca deben subirse al repositorio.
-
 ## Pruebas
 
 ```bash
@@ -393,17 +378,6 @@ La cobertura funcional incluye:
 - escenarios sin mutar la orden;
 - reparación guiada;
 - asistente externo y respaldo local.
-
-## Despliegue en Streamlit Community Cloud
-
-1. Publicar este repositorio en GitHub.
-2. En Streamlit Community Cloud, crear una aplicación desde el repositorio.
-3. Seleccionar la rama principal y `app.py` como archivo de entrada.
-4. Seleccionar Python 3.12.
-5. Copiar los secretos en **Advanced settings → Secrets**; nunca subir `secrets.toml`.
-6. Desplegar y verificar todas las vistas desde una sesión sin autenticar.
-
-Cada actualización publicada en la rama configurada vuelve a desplegar la aplicación.
 
 ## Evolución hacia Odoo
 
@@ -442,14 +416,6 @@ El motor de cálculo puede reutilizarse porque no depende de componentes visuale
 - La IA externa depende de disponibilidad y cuota; el respaldo local mantiene la operación.
 - Antes de producción deben añadirse autenticación, roles, persistencia y monitoreo.
 
-## Uso de inteligencia artificial durante el desarrollo
-
-La IA se utilizó como herramienta de ingeniería para interpretar el problema, contrastar alternativas, revisar código, identificar casos límite, proponer pruebas, depurar, mejorar la experiencia y documentar.
-
-Las decisiones no se aceptaron automáticamente. Se validaron mediante reglas explícitas, resultados esperados, 62 pruebas, revisión visual en navegador y control de versiones. La responsabilidad de definir, ejecutar, comparar y aprobar cada decisión permaneció en la desarrolladora.
-
-La explicación completa está en [docs/uso-de-ia.md](docs/uso-de-ia.md).
-
 ## Criterio de producto
 
-La solución fue tratada como el inicio de una herramienta interna real: debe ayudar a una gerente a detectar qué está mal, comprender por qué, decidir qué hacer y dejar una orden utilizable. Las funciones futuras solo se proponen cuando pueden apoyarse en datos, auditarse y reducir trabajo operativo.
+La solución fue tratada como el inicio de una herramienta interna real: debe ayudar a un gerente a detectar qué está mal, comprender por qué, decidir qué hacer y dejar una orden utilizable. Las funciones futuras solo se proponen cuando pueden apoyarse en datos, auditarse y reducir trabajo operativo.
